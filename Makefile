@@ -1,7 +1,7 @@
 VENV := .venv
-RUFF := $(VENV)/bin/ruff
-MYPY := $(VENV)/bin/mypy
-PYLINT := $(VENV)/bin/pylint
+RUFF := $(if $(wildcard $(VENV)/bin/ruff),$(VENV)/bin/ruff,ruff)
+MYPY := $(if $(wildcard $(VENV)/bin/mypy),$(VENV)/bin/mypy,mypy)
+PYLINT := $(if $(wildcard $(VENV)/bin/pylint),$(VENV)/bin/pylint,pylint)
 SRC := monitor.py core fetchers
 
 .PHONY: lint lint-fix ruff pylint mypy
