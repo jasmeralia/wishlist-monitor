@@ -1,15 +1,16 @@
-# core/logger.py
+"""Logging setup: configures the root logger once from environment variables."""
 import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
 
-_configured = False
+_CONFIGURED = False
 
 
-def setup_logging():
-    global _configured
-    if _configured:
+def setup_logging() -> None:
+    """Configure the root logger from environment variables (idempotent)."""
+    global _CONFIGURED  # pylint: disable=global-statement
+    if _CONFIGURED:
         return
 
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -22,9 +23,7 @@ def setup_logging():
     root = logging.getLogger()
     root.setLevel(getattr(logging, log_level, logging.INFO))
 
-    formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s [%(name)s] %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
 
     # Avoid duplicate handlers
     if not root.handlers:
@@ -45,12 +44,13 @@ def setup_logging():
                 fh.setLevel(getattr(logging, log_level, logging.INFO))
                 fh.setFormatter(formatter)
                 root.addHandler(fh)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 root.warning("Failed to initialize file logging: %s", e)
 
-    _configured = True
+    _CONFIGURED = True
 
 
 def get_logger(name: str | None = None) -> logging.Logger:
+    """Return a logger for *name*, ensuring logging is configured first."""
     setup_logging()
     return logging.getLogger(name)

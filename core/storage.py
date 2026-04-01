@@ -1,9 +1,10 @@
-# core/storage.py
+"""SQLite persistence layer for wishlist items and change events."""
 import os
 import sqlite3
 import datetime
-import pytz
 from typing import Dict, List, Tuple
+
+import pytz
 
 from .models import Item
 from .logger import get_logger
@@ -13,16 +14,19 @@ logger = get_logger(__name__)
 DB_PATH = os.getenv("DB_PATH", "/data/wishlist_state.sqlite3")
 
 
-def _connect():
+def _connect() -> sqlite3.Connection:
+    """Open (and create parent dirs for) the SQLite database."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     return sqlite3.connect(DB_PATH)
 
 
 def now_utc_iso() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.datetime.now(tz=pytz.UTC).isoformat()
 
 
-def ensure_db():
+def ensure_db() -> None:
+    """Create the items and events tables if they do not yet exist."""
     with _connect() as con:
         cur = con.cursor()
         cur.execute(
@@ -62,9 +66,7 @@ def ensure_db():
 
 
 def get_previous_items(platform: str, wishlist_id: str) -> Dict[str, Item]:
-    """
-    Return mapping item_id -> Item for existing DB entries.
-    """
+    """Return mapping item_id -> Item for existing DB entries."""
     with _connect() as con:
         cur = con.cursor()
         cur.execute(
@@ -93,6 +95,7 @@ def get_previous_items(platform: str, wishlist_id: str) -> Dict[str, Item]:
 
 
 def get_previous_item_count(platform: str, wishlist_id: str) -> int:
+    """Return the number of stored items for the given platform/wishlist."""
     with _connect() as con:
         cur = con.cursor()
         cur.execute(
@@ -110,10 +113,8 @@ def save_items_and_events(
     added: List[Item],
     removed: List[Item],
     price_changes: List[Tuple[Item, int, int]],
-):
-    """
-    Persist current items and diff events into SQLite.
-    """
+) -> None:
+    """Persist current items and diff events into SQLite."""
     ts = now_utc_iso()
     with _connect() as con:
         cur = con.cursor()

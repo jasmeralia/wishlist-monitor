@@ -1,4 +1,4 @@
-# core/models.py
+"""Data models shared across all fetchers and the monitor core."""
 from dataclasses import dataclass
 
 
@@ -8,6 +8,7 @@ class Item:
     Normalized representation of a wishlist item across all platforms.
     Prices are stored in cents for consistency.
     """
+
     item_id: str
     name: str
     price_cents: int = -1

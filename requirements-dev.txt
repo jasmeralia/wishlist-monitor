@@ -1,10 +1,4 @@
-requests
-beautifulsoup4
-pytz
-tenacity
-types-pytz
-types-requests
-Jinja2
-types-Jinja2
+-r requirements.txt
 ruff
 mypy
+pylint

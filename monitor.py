@@ -1,3 +1,4 @@
+"""Wishlist monitor entry point: runs once or as a polling daemon."""
 import logging
 import os
 import json
@@ -34,6 +35,7 @@ def _wishlist_url(platform: str, identifier: str) -> str | None:
 
 
 def jitter_sleep_minutes(minutes: int) -> None:
+    """Sleep for approximately *minutes* with ±10% random jitter."""
     base = max(1, minutes)
     jitter = random.uniform(-0.1 * base, 0.1 * base)
     total = base + jitter
@@ -42,15 +44,16 @@ def jitter_sleep_minutes(minutes: int) -> None:
 
 
 def load_config(path: str = CONFIG_PATH) -> Dict[str, Any]:
+    """Load and validate the JSON config file, raising SystemExit on error."""
     if not os.path.exists(path):
         logger.error("Config file not found at %s", path)
         raise SystemExit(1)
     try:
         with open(path, "r", encoding="utf-8") as f:
             cfg: Dict[str, Any] = json.load(f)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Failed to load config.json at %s: %s", path, e)
-        raise SystemExit(1)
+        raise SystemExit(1) from e
 
     if not isinstance(cfg, dict) or "wishlists" not in cfg:
         logger.error("config.json must be an object with a 'wishlists' key.")
@@ -64,6 +67,7 @@ def load_config(path: str = CONFIG_PATH) -> Dict[str, Any]:
 
 
 def get_recipients_for_wishlist(wl: Dict[str, Any]) -> List[str]:
+    """Return per-wishlist recipients, falling back to global recipients."""
     wl_recipients = wl.get("recipients")
     if isinstance(wl_recipients, list):
         cleaned = [r.strip() for r in wl_recipients if isinstance(r, str) and r.strip()]
@@ -73,13 +77,16 @@ def get_recipients_for_wishlist(wl: Dict[str, Any]) -> List[str]:
 
 
 def process_wishlist(wl: Dict[str, Any]) -> None:
+    """Fetch, diff, and notify for a single wishlist config entry."""
     platform = wl.get("platform", "").strip().lower()
     name = wl.get("name", "").strip()
     identifier = wl.get("identifier", "").strip()
     enabled = wl.get("enabled", True)
 
     if not platform or not name or not identifier:
-        logger.error("Invalid wishlist entry (missing platform/name/identifier): %s", wl)
+        logger.error(
+            "Invalid wishlist entry (missing platform/name/identifier): %s", wl
+        )
         return
 
     if not enabled:
@@ -90,14 +97,17 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
     if not fetcher:
         logger.error(
             "No fetcher registered for platform '%s'; skipping wishlist '%s'.",
-            platform, name,
+            platform,
+            name,
         )
         return
 
     wishlist_id = identifier
     logger.info(
         "Processing wishlist: platform=%s, name=%s, identifier=%s",
-        platform, name, identifier,
+        platform,
+        name,
+        identifier,
     )
 
     previous_items = storage.get_previous_items(platform, wishlist_id)
@@ -108,12 +118,15 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
         if previous_count > 0:
             logger.error(
                 "Fetch returned zero items for %s:%s but previous count is %d; skipping diff.",
-                platform, wishlist_id, previous_count,
+                platform,
+                wishlist_id,
+                previous_count,
             )
         else:
             logger.info(
                 "Fetch returned zero items for %s:%s and no previous items; skipping.",
-                platform, wishlist_id,
+                platform,
+                wishlist_id,
             )
         return
 
@@ -126,14 +139,20 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
             "%d items would be removed (threshold=%d). "
             "Skipping database save and notifications. "
             "This may indicate a scrape/parse failure.",
-            platform, name, wishlist_id,
-            len(removed), REMOVAL_THRESHOLD,
+            platform,
+            name,
+            wishlist_id,
+            len(removed),
+            REMOVAL_THRESHOLD,
         )
         logger.warning(
             "Threshold guard diagnostics — previous_count=%d, fetched_count=%d, "
             "added=%d, removed=%d, price_changes=%d",
-            previous_count, new_count,
-            len(added), len(removed), len(price_changes),
+            previous_count,
+            new_count,
+            len(added),
+            len(removed),
+            len(price_changes),
         )
         logger.warning(
             "Removed item IDs and names: %s",
@@ -157,7 +176,7 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
         for p in dump_paths:
             try:
                 os.remove(p)
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
     storage.save_items_and_events(
@@ -168,7 +187,9 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
         logger.info("No changes for %s '%s' (%s).", platform, name, wishlist_id)
         return
 
-    subject = f"[Wishlist Monitor] Changes detected on {platform.capitalize()} for {name}"
+    subject = (
+        f"[Wishlist Monitor] Changes detected on {platform.capitalize()} for {name}"
+    )
     html_body = build_html_report(
         platform,
         name,
@@ -200,12 +221,13 @@ def _wishlist_debug_id(wl: Dict[str, Any]) -> str:
 def _debug_log_wishlist_order(phase: str, wishlists: List[Dict[str, Any]]) -> None:
     try:
         order = [_wishlist_debug_id(wl) for wl in wishlists if isinstance(wl, dict)]
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         order = ["<error>"]
     logger.debug("%s wishlist order: %s", phase, order)
 
 
 def run_once() -> int:
+    """Run a single poll cycle across all configured wishlists."""
     storage.ensure_db()
     cfg = load_config()
     wishlists = cfg.get("wishlists", [])
@@ -217,13 +239,14 @@ def run_once() -> int:
     for wl in wishlists:
         try:
             process_wishlist(wl)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("Unhandled error in run_once: %s", e)
 
     return 0
 
 
 def run_daemon() -> None:
+    """Run as a continuous daemon, polling each wishlist on its configured interval."""
     logger.info("Starting daemon; poll every %d minutes.", POLL_MINUTES)
     storage.ensure_db()
     last_run_map: Dict[Tuple[str, str], float] = {}
@@ -239,7 +262,8 @@ def run_daemon() -> None:
             logger.debug(
                 "Daemon cycle start %s with seed %d (%d wishlists).",
                 time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(now)),
-                seed, len(wishlists),
+                seed,
+                len(wishlists),
             )
 
             _debug_log_wishlist_order("daemon BEFORE shuffle", wishlists)
@@ -266,8 +290,10 @@ def run_daemon() -> None:
                 poll_val = wl.get("poll_minutes")
 
                 try:
-                    poll_minutes = int(poll_val) if poll_val is not None else POLL_MINUTES
-                except Exception:
+                    poll_minutes = (
+                        int(poll_val) if poll_val is not None else POLL_MINUTES
+                    )
+                except Exception:  # pylint: disable=broad-exception-caught
                     poll_minutes = POLL_MINUTES
 
                 poll_minutes = max(1, poll_minutes)
@@ -278,23 +304,28 @@ def run_daemon() -> None:
                     if elapsed < poll_minutes:
                         logger.debug(
                             "Skip %s:%s (%.1f < %d minutes).",
-                            platform, name, elapsed, poll_minutes,
+                            platform,
+                            name,
+                            elapsed,
+                            poll_minutes,
                         )
                         continue
 
                 logger.debug(
                     "Processing WL %s:%s (poll_minutes=%d).",
-                    platform, name, poll_minutes,
+                    platform,
+                    name,
+                    poll_minutes,
                 )
 
                 try:
                     process_wishlist(wl)
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.exception("Error processing %s:%s: %s", platform, name, e)
                 finally:
                     last_run_map[key] = time.time()
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("Unhandled error in daemon loop: %s", e)
 
         jitter_sleep_minutes(POLL_MINUTES)
@@ -304,8 +335,7 @@ if __name__ == "__main__":
     try:
         if MODE == "once":
             raise SystemExit(run_once())
-        else:
-            run_daemon()
-    except Exception as e:
+        run_daemon()
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("Fatal monitor error: %s", e)
-        raise SystemExit(2)
+        raise SystemExit(2) from e

@@ -1,20 +1,20 @@
-# fetchers/throne.py
+"""Throne wishlist fetcher with three extraction strategies: NEXT_DATA, JSON-LD, grid."""
 import os
+import json
 import datetime
-import logging
 import re
 import hashlib
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import requests
 from bs4 import BeautifulSoup, Tag
-import json
 from tenacity import retry, wait_exponential_jitter, stop_after_attempt, RetryError
 
 from core.models import Item
 from core.logger import get_logger
 
 logger = get_logger(__name__)
+
 
 def _dump_html(wishlist_name: str | None, html: str) -> str | None:
     """Write HTML to a timestamped file; always writes for threshold analysis."""
@@ -27,10 +27,9 @@ def _dump_html(wishlist_name: str | None, html: str) -> str | None:
             f.write(html)
         logger.debug("Throne HTML dumped to %s", path)
         return path
-    except Exception as exc:
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.debug("Failed to dump Throne HTML: %s", exc)
         return None
-
 
 
 USER_AGENT = os.getenv(
@@ -62,18 +61,19 @@ def _fetch(url: str) -> str:
 
 
 def _extract_items_next_data(html: str) -> Optional[List[Item]]:
+    """Extract items from the __NEXT_DATA__ JSON script tag."""
     soup = BeautifulSoup(html, "html.parser")
     script = soup.find("script", id="__NEXT_DATA__")
     if not script or not script.string:
         return None
     try:
         data = json.loads(script.string)
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return None
 
-    found = []
+    found: list[Any] = []
 
-    def is_item_list(lst):
+    def is_item_list(lst: Any) -> bool:
         if not isinstance(lst, list):
             return False
         count = 0
@@ -85,7 +85,7 @@ def _extract_items_next_data(html: str) -> Optional[List[Item]]:
                 count += 1
         return count >= 1
 
-    def deep_iter(node):
+    def deep_iter(node: Any) -> None:
         nonlocal found
         if isinstance(node, dict):
             for v in node.values():
@@ -112,19 +112,10 @@ def _extract_items_next_data(html: str) -> Optional[List[Item]]:
                 price_field = k
                 break
         currency = it.get("currency") or it.get("currencyCode") or "USD"
-        url = (
-            it.get("url")
-            or it.get("productUrl")
-            or it.get("url_path")
-            or ""
-        )
+        url = it.get("url") or it.get("productUrl") or it.get("url_path") or ""
 
         # Prefer explicit image fields from Throne JSON; fall back to extras.
-        image_val = (
-            it.get("imgLink")
-            or it.get("image")
-            or it.get("imageUrl")
-        )
+        image_val = it.get("imgLink") or it.get("image") or it.get("imageUrl")
 
         if not image_val:
             extra_imgs = it.get("extraImgLinks")
@@ -148,18 +139,12 @@ def _extract_items_next_data(html: str) -> Optional[List[Item]]:
             if price_field and "cent" in price_field.lower():
                 try:
                     price_cents = int(price)
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     price_cents = -1
             elif isinstance(price, int):
-                price_cents = (
-                    price
-                    if price > 1000
-                    else int(round(float(price) * 100))
-                )
+                price_cents = price if price > 1000 else int(round(float(price) * 100))
             elif isinstance(price, float):
-                price_cents = (
-                    int(round(price * 100)) if price < 1000 else int(price)
-                )
+                price_cents = int(round(price * 100)) if price < 1000 else int(price)
             else:
                 s = (
                     str(price)
@@ -172,12 +157,10 @@ def _extract_items_next_data(html: str) -> Optional[List[Item]]:
                 try:
                     if re.fullmatch(r"\d+", s):
                         v = int(s)
-                        price_cents = (
-                            v if v > 1000 else int(round(v * 100))
-                        )
+                        price_cents = v if v > 1000 else int(round(v * 100))
                     else:
                         price_cents = int(round(float(s) * 100))
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     price_cents = -1
 
         items.append(
@@ -197,67 +180,60 @@ def _extract_items_next_data(html: str) -> Optional[List[Item]]:
     return items
 
 
+def _parse_jsonld_offer(offers: Any, default_currency: str = "USD") -> tuple[int, str]:
+    """Extract (price_cents, currency) from a JSON-LD offers object or list."""
+    price_cents = -1
+    currency = default_currency
+    offer = offers if isinstance(offers, dict) else (offers[0] if isinstance(offers, list) and offers else None)
+    if offer is None:
+        return price_cents, currency
+    price = offer.get("price")
+    currency = offer.get("priceCurrency") or currency
+    try:
+        if price is not None:
+            price_cents = int(round(float(str(price)) * 100))
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
+    return price_cents, currency
+
+
+def _parse_jsonld_item_entry(el: Any) -> Optional[Item]:
+    """Parse a single JSON-LD itemListElement entry into an Item, or return None."""
+    item = el.get("item") if isinstance(el, dict) else el
+    if not isinstance(item, dict):
+        return None
+    name = item.get("name") or ""
+    url = item.get("url") or ""
+    offers = item.get("offers")
+    price_cents, currency = _parse_jsonld_offer(offers) if offers else (-1, "USD")
+    item_id = item.get("@id") or (url and hashlib.sha1(url.encode()).hexdigest())
+    return Item(
+        item_id=str(item_id) if item_id else hashlib.sha1((name + url).encode()).hexdigest(),
+        name=name.strip(),
+        price_cents=price_cents,
+        currency=currency,
+        product_url=url or "",
+        image_url=item.get("image") or "",
+        available=True,
+    )
+
+
 def _extract_items_jsonld(html: str) -> Optional[List[Item]]:
+    """Extract items from JSON-LD ItemList script tags."""
     soup = BeautifulSoup(html, "html.parser")
     out: List[Item] = []
     for script in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(script.string or "")
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             continue
         data_list = data if isinstance(data, list) else [data]
         for d in data_list:
-            if d.get("@type") == "ItemList" and isinstance(
-                d.get("itemListElement"), list
-            ):
+            if d.get("@type") == "ItemList" and isinstance(d.get("itemListElement"), list):
                 for el in d["itemListElement"]:
-                    item = el.get("item") if isinstance(el, dict) else el
-                    if not isinstance(item, dict):
-                        continue
-                    name = item.get("name") or ""
-                    url = item.get("url") or ""
-                    offers = item.get("offers")
-                    price_cents = -1
-                    currency = "USD"
-                    if isinstance(offers, dict):
-                        price = offers.get("price")
-                        currency = offers.get("priceCurrency") or currency
-                        try:
-                            if price is not None:
-                                price_cents = int(
-                                    round(float(str(price)) * 100)
-                                )
-                        except Exception:
-                            pass
-                    elif isinstance(offers, list) and offers:
-                        off = offers[0]
-                        price = off.get("price")
-                        currency = off.get("priceCurrency") or currency
-                        try:
-                            if price is not None:
-                                price_cents = int(
-                                    round(float(str(price)) * 100)
-                                )
-                        except Exception:
-                            pass
-                    item_id = item.get("@id") or (
-                        url and hashlib.sha1(url.encode()).hexdigest()
-                    )
-                    out.append(
-                        Item(
-                            item_id=str(item_id)
-                            if item_id
-                            else hashlib.sha1(
-                                (name + url).encode()
-                            ).hexdigest(),
-                            name=name.strip(),
-                            price_cents=price_cents,
-                            currency=currency,
-                            product_url=url or "",
-                            image_url=item.get("image") or "",
-                            available=True,
-                        )
-                    )
+                    item = _parse_jsonld_item_entry(el)
+                    if item is not None:
+                        out.append(item)
     if not out:
         return None
     uniq: dict[str, Item] = {}
@@ -267,6 +243,7 @@ def _extract_items_jsonld(html: str) -> Optional[List[Item]]:
 
 
 def _extract_items_grid(html: str) -> Optional[List[Item]]:
+    """Extract items by scanning anchor tags with adjacent price text."""
     soup = BeautifulSoup(html, "html.parser")
     items: List[Item] = []
     price_re = re.compile(r"(?<!\w)([$€£])\s?([0-9]+(?:[.,][0-9]{2})?)")
@@ -309,10 +286,8 @@ def _extract_items_grid(html: str) -> Optional[List[Item]]:
                 elif symbol == "£":
                     currency = "GBP"
                 try:
-                    price_cents = int(
-                        round(float(num.replace(",", ".")) * 100)
-                    )
-                except Exception:
+                    price_cents = int(round(float(num.replace(",", ".")) * 100))
+                except Exception:  # pylint: disable=broad-exception-caught
                     price_cents = -1
                 found_price = True
                 break
@@ -327,7 +302,7 @@ def _extract_items_grid(html: str) -> Optional[List[Item]]:
         href_raw = a.get("href")
         if not isinstance(href_raw, str):
             continue
-        
+
         href = href_raw
         if href.startswith("/"):
             href = "https://throne.com" + href
@@ -355,7 +330,9 @@ def _extract_items_grid(html: str) -> Optional[List[Item]]:
     return list(uniq.values())
 
 
-def fetch_items(identifier: str, wishlist_name: str | None = None) -> tuple[Optional[List[Item]], list[str]]:
+def fetch_items(
+    identifier: str, wishlist_name: str | None = None
+) -> tuple[Optional[List[Item]], list[str]]:
     """
     Fetch items from a Throne wishlist (by username or URL), returning a list of Items
     or None on failure.
@@ -369,7 +346,7 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> tuple[Opti
     except RetryError as e:
         logger.error("Throne fetch failed for %s after retries: %s", url, e)
         return None, []
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Throne fetch threw unexpected exception for %s: %s", url, e)
         return None, []
 

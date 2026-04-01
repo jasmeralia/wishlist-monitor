@@ -1,4 +1,4 @@
-# core/emailer.py
+"""Email delivery via SMTP, configured entirely from environment variables."""
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -20,6 +20,7 @@ _EMAIL_TO_RAW = os.getenv("EMAIL_TO", "").strip()
 
 
 def get_global_recipients() -> list[str]:
+    """Parse EMAIL_TO env var into a list of stripped, non-empty addresses."""
     if not _EMAIL_TO_RAW:
         return []
     parts = [p.strip() for p in _EMAIL_TO_RAW.replace(";", ",").split(",")]
@@ -31,11 +32,10 @@ def send_email(
     html_body: str,
     text_body: str | None,
     recipients: list[str],
-):
+) -> None:
+    """Send an HTML (+ plain text fallback) email via the configured SMTP server."""
     if not recipients:
-        logger.warning(
-            "No recipients provided for email '%s'; skipping send.", subject
-        )
+        logger.warning("No recipients provided for email '%s'; skipping send.", subject)
         return
 
     if not (EMAIL_FROM and SMTP_HOST):
@@ -74,5 +74,5 @@ def send_email(
     finally:
         try:
             server.quit()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pass

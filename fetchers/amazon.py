@@ -1,5 +1,5 @@
+"""Amazon wishlist fetcher using the mobile HTML layout."""
 import datetime
-import logging
 import math
 import os
 import random
@@ -24,7 +24,7 @@ DEBUG_DIR = Path(os.getenv("DEBUG_DIR", "/data/debug_dumps"))
 
 # Global Amazon fetch spacing (seconds between any two wishlist page fetches)
 AMAZON_MIN_SPACING = int(os.getenv("AMAZON_MIN_SPACING", "45"))
-_last_amazon_fetch_ts: float = 0.0
+_LAST_AMAZON_FETCH_TS: float = 0.0
 
 # Per-page / retry behaviour
 AMAZON_MAX_PAGES = int(os.getenv("AMAZON_MAX_PAGES", "50"))
@@ -54,7 +54,7 @@ def _dump_html(wishlist_name: str | None, page_index: int, html: str) -> Path | 
         path.write_text(html, encoding="utf-8")
         logger.debug("Dumped Amazon HTML to %s", path)
         return path
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as exc:  # pylint: disable=broad-exception-caught  # pragma: no cover
         logger.debug("Failed to dump Amazon HTML to %s: %s", path, exc)
         return None
 
@@ -78,6 +78,7 @@ def normalize_wishlist_url(url: str) -> str:
 
 
 def ensure_absolute_url(url: str) -> str:
+    """Return *url* unchanged if already absolute, otherwise prepend BASE_URL."""
     parsed = urlparse(url)
     if parsed.scheme and parsed.netloc:
         return url
@@ -160,7 +161,9 @@ def parse_item_li(li: Tag) -> Item:
             product_url = ensure_absolute_url(href_clean)
 
     # Title
-    title_el = _select_first(li, ["h3", "h2", ".awl-item-title", "span.a-size-base", "span.a-size-medium"])
+    title_el = _select_first(
+        li, ["h3", "h2", ".awl-item-title", "span.a-size-base", "span.a-size-medium"]
+    )
     name = _text_or_empty(title_el) or item_id
 
     # Price: prefer data-price on container when present
@@ -168,7 +171,9 @@ def parse_item_li(li: Tag) -> Item:
     currency = "USD"
 
     raw_price_val = li.get("data-price")
-    raw_price_str = str(raw_price_val) if isinstance(raw_price_val, (str, int, float)) else None
+    raw_price_str = (
+        str(raw_price_val) if isinstance(raw_price_val, (str, int, float)) else None
+    )
     if raw_price_str:
         try:
             price_value = float(raw_price_str)
@@ -177,7 +182,9 @@ def parse_item_li(li: Tag) -> Item:
             else:
                 logger.debug("Non-finite price %r for item %s", raw_price_str, item_id)
         except ValueError:
-            logger.debug("Failed to parse data-price %r for item %s", raw_price_str, item_id)
+            logger.debug(
+                "Failed to parse data-price %r for item %s", raw_price_str, item_id
+            )
     else:
         # Fallback to whole + fraction layout
         pw = li.select_one(".a-price-whole")
@@ -221,23 +228,27 @@ def parse_item_li(li: Tag) -> Item:
 
 def extract_items_from_soup(soup: BeautifulSoup) -> list[Item]:
     """Extract items from Amazon mobile wishlist HTML soup."""
-    containers = soup.select("li.awl-item-wrapper, li.g-item-sortable, div.g-item-sortable")
+    containers = soup.select(
+        "li.awl-item-wrapper, li.g-item-sortable, div.g-item-sortable"
+    )
     logger.debug("Found %d Amazon item containers on page.", len(containers))
 
     items: list[Item] = []
     for li in containers:
         try:
             items.append(parse_item_li(li))
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # pragma: no cover
             logger.debug("Failed to parse an item block: %s", exc)
     return items
 
 
-def _apply_global_spacing(wishlist_name: str | None, identifier: str, page: int) -> None:
+def _apply_global_spacing(
+    wishlist_name: str | None, identifier: str, page: int
+) -> None:
     """Apply global Amazon fetch spacing based on AMAZON_MIN_SPACING."""
-    global _last_amazon_fetch_ts
+    global _LAST_AMAZON_FETCH_TS  # pylint: disable=global-statement
     now = time.time()
-    since_last = now - _last_amazon_fetch_ts
+    since_last = now - _LAST_AMAZON_FETCH_TS
     if since_last < AMAZON_MIN_SPACING:
         wait_for = AMAZON_MIN_SPACING - since_last
         logger.info(
@@ -248,10 +259,12 @@ def _apply_global_spacing(wishlist_name: str | None, identifier: str, page: int)
             page,
         )
         time.sleep(wait_for)
-    _last_amazon_fetch_ts = time.time()
+    _LAST_AMAZON_FETCH_TS = time.time()
 
 
-def fetch_items(identifier: str, wishlist_name: str | None = None) -> tuple[list[Item], list[Path]]:
+def fetch_items(
+    identifier: str, wishlist_name: str | None = None
+) -> tuple[list[Item], list[Path]]:
     """
     Fetch all items for a given Amazon wishlist using the mobile wishlist layout.
 
@@ -267,7 +280,9 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> tuple[list
         # Assume bare wishlist ID
         first_url = f"{BASE_URL}/gp/aw/ls?lid={identifier}&ty=wishlist"
 
-    logger.info("Checking Amazon wishlist '%s' at %s", wishlist_name or identifier, first_url)
+    logger.info(
+        "Checking Amazon wishlist '%s' at %s", wishlist_name or identifier, first_url
+    )
 
     headers = {
         "User-Agent": (
@@ -356,7 +371,9 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> tuple[list
             dump_paths.append(p)
 
         soup = BeautifulSoup(html, "html.parser")
-        li_nodes = soup.select("li.awl-item-wrapper, li.g-item-sortable, div.g-item-sortable")
+        li_nodes = soup.select(
+            "li.awl-item-wrapper, li.g-item-sortable, div.g-item-sortable"
+        )
 
         if not li_nodes:
             logger.info(
@@ -370,8 +387,13 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> tuple[list
         for li in li_nodes:
             try:
                 item = parse_item_li(li)
-            except Exception as exc:
-                logger.debug("Failed to parse item on wishlist '%s' page %d: %s", wishlist_name or identifier, page, exc)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logger.debug(
+                    "Failed to parse item on wishlist '%s' page %d: %s",
+                    wishlist_name or identifier,
+                    page,
+                    exc,
+                )
                 continue
             if item.item_id in seen_ids:
                 continue

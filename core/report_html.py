@@ -1,3 +1,4 @@
+"""HTML email report builder using Jinja2 templates."""
 import os
 from pathlib import Path
 from typing import List, Tuple
@@ -30,7 +31,7 @@ def build_html_report(
     new_count: int,
     wishlist_url: str | None = None,
 ) -> str:
-
+    """Render the HTML email report for a single wishlist diff."""
     template = env.get_template(f"email_{EMAIL_THEME}.html")
 
     added_data = [
