@@ -16,10 +16,8 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# DEBUG HTML dumping (only when log level = DEBUG)
-def _dump_html_debug(wishlist_name: str | None, html: str) -> None:
-    if not logger.isEnabledFor(logging.DEBUG):
-        return
+def _dump_html(wishlist_name: str | None, html: str) -> str | None:
+    """Write HTML to a timestamped file; always writes for threshold analysis."""
     try:
         os.makedirs(DEBUG_DIR, exist_ok=True)
         ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -28,8 +26,10 @@ def _dump_html_debug(wishlist_name: str | None, html: str) -> None:
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
         logger.debug("Throne HTML dumped to %s", path)
+        return path
     except Exception as exc:
         logger.debug("Failed to dump Throne HTML: %s", exc)
+        return None
 
 
 
@@ -355,7 +355,7 @@ def _extract_items_grid(html: str) -> Optional[List[Item]]:
     return list(uniq.values())
 
 
-def fetch_items(identifier: str, wishlist_name: str | None = None) -> Optional[List[Item]]:
+def fetch_items(identifier: str, wishlist_name: str | None = None) -> tuple[Optional[List[Item]], list[str]]:
     """
     Fetch items from a Throne wishlist (by username or URL), returning a list of Items
     or None on failure.
@@ -365,13 +365,15 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> Optional[L
 
     try:
         html = _fetch(url)
-        _dump_html_debug(wishlist_name, html)
+        dump_path = _dump_html(wishlist_name, html)
     except RetryError as e:
         logger.error("Throne fetch failed for %s after retries: %s", url, e)
-        return None
+        return None, []
     except Exception as e:
         logger.error("Throne fetch threw unexpected exception for %s: %s", url, e)
-        return None
+        return None, []
+
+    dump_paths = [dump_path] if dump_path else []
 
     items = _extract_items_next_data(html)
     if not items:
@@ -382,24 +384,11 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> Optional[L
         items = _extract_items_grid(html)
 
     if not items:
-        if logger.isEnabledFor(logging.DEBUG):
-            try:
-                os.makedirs(DEBUG_DIR, exist_ok=True)
-                safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", url)
-                fname = os.path.join(DEBUG_DIR, f"{safe}.html")
-                with open(fname, "w", encoding="utf-8") as f:
-                    f.write(html)
-                logger.warning(
-                    "Throne parsed 0 items for %s. Saved HTML to %s.",
-                    url,
-                    fname,
-                )
-            except Exception as e:
-                logger.warning("Throne failed to save debug HTML for %s: %s", url, e)
-        return None
+        logger.warning("Throne parsed 0 items for %s.", url)
+        return None, dump_paths
 
     if DEBUG_LOG_SAMPLES:
         logger.debug("Throne sample items for %s: %s", url, items[:3])
 
     logger.info("Throne: found %d items for %s", len(items), url)
-    return items
+    return items, dump_paths

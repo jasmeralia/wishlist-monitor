@@ -45,19 +45,18 @@ def _sanitize(name: str) -> str:
     return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in name)
 
 
-def _dump_html(wishlist_name: str | None, page_index: int, html: str) -> None:
-    """Write HTML to a timestamped file when DEBUG logging is enabled."""
-    if not logger.isEnabledFor(logging.DEBUG):
-        return
-
+def _dump_html(wishlist_name: str | None, page_index: int, html: str) -> Path | None:
+    """Write HTML to a timestamped file; always writes for threshold analysis."""
     timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe = _sanitize(wishlist_name or "unknown")
     path = DEBUG_DIR / f"amazon_{safe}_page{page_index}_{timestamp}.html"
     try:
         path.write_text(html, encoding="utf-8")
         logger.debug("Dumped Amazon HTML to %s", path)
+        return path
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("Failed to dump Amazon HTML to %s: %s", path, exc)
+        return None
 
 
 def normalize_wishlist_url(url: str) -> str:
@@ -252,7 +251,7 @@ def _apply_global_spacing(wishlist_name: str | None, identifier: str, page: int)
     _last_amazon_fetch_ts = time.time()
 
 
-def fetch_items(identifier: str, wishlist_name: str | None = None) -> list[Item]:
+def fetch_items(identifier: str, wishlist_name: str | None = None) -> tuple[list[Item], list[Path]]:
     """
     Fetch all items for a given Amazon wishlist using the mobile wishlist layout.
 
@@ -282,6 +281,7 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> list[Item]
     }
 
     all_items: list[Item] = []
+    dump_paths: list[Path] = []
     seen_ids: set[str] = set()
     next_url: str | None = first_url
     page = 0
@@ -304,7 +304,7 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> list[Item]
                             wishlist_name or identifier,
                             current_url,
                         )
-                        return all_items
+                        return all_items, dump_paths
                     sleep_for = random.uniform(CAPTCHA_SLEEP * 0.5, CAPTCHA_SLEEP * 1.5)
                     logger.warning(
                         "Detected CAPTCHA/robot page for wishlist '%s' at %s; sleeping %.1fs before retry (%d/%d).",
@@ -328,7 +328,7 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> list[Item]
                         attempt,
                         exc,
                     )
-                    return all_items
+                    return all_items, dump_paths
                 sleep_for = random.uniform(FAIL_SLEEP * 0.5, FAIL_SLEEP * 1.5)
                 logger.warning(
                     "Error fetching Amazon page %s for wishlist '%s' (attempt %d/%d): %s. "
@@ -349,9 +349,11 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> list[Item]
                 current_url,
                 wishlist_name or identifier,
             )
-            return all_items
+            return all_items, dump_paths
 
-        _dump_html(wishlist_name, page, html)
+        p = _dump_html(wishlist_name, page, html)
+        if p:
+            dump_paths.append(p)
 
         soup = BeautifulSoup(html, "html.parser")
         li_nodes = soup.select("li.awl-item-wrapper, li.g-item-sortable, div.g-item-sortable")
@@ -421,4 +423,4 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> list[Item]
         len(all_items),
         wishlist_name or identifier,
     )
-    return all_items
+    return all_items, dump_paths

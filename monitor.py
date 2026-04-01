@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 import time
@@ -16,6 +17,7 @@ logger = get_logger(__name__)
 POLL_MINUTES = int(os.getenv("POLL_MINUTES", "10"))
 MODE = os.getenv("MODE", "daemon").lower()  # "daemon" or "once"
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data/config.json")
+REMOVAL_THRESHOLD = int(os.getenv("REMOVAL_THRESHOLD", "20"))
 
 
 def _wishlist_url(platform: str, identifier: str) -> str | None:
@@ -101,7 +103,7 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
     previous_items = storage.get_previous_items(platform, wishlist_id)
     previous_count = len(previous_items)
 
-    items = fetcher(identifier, name)
+    items, dump_paths = fetcher(identifier, name)
     if not items:
         if previous_count > 0:
             logger.error(
@@ -117,6 +119,46 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
 
     added, removed, price_changes = diff_items(previous_items, items)
     new_count = len(items)
+
+    if len(removed) >= REMOVAL_THRESHOLD:
+        logger.warning(
+            "REMOVAL THRESHOLD EXCEEDED for %s '%s' (%s): "
+            "%d items would be removed (threshold=%d). "
+            "Skipping database save and notifications. "
+            "This may indicate a scrape/parse failure.",
+            platform, name, wishlist_id,
+            len(removed), REMOVAL_THRESHOLD,
+        )
+        logger.warning(
+            "Threshold guard diagnostics — previous_count=%d, fetched_count=%d, "
+            "added=%d, removed=%d, price_changes=%d",
+            previous_count, new_count,
+            len(added), len(removed), len(price_changes),
+        )
+        logger.warning(
+            "Removed item IDs and names: %s",
+            [(item.item_id, item.name) for item in removed],
+        )
+        logger.warning(
+            "Added item IDs and names: %s",
+            [(item.item_id, item.name) for item in added],
+        )
+        if dump_paths:
+            logger.warning(
+                "HTML captures for this cycle: %s",
+                [str(p) for p in dump_paths],
+            )
+        logger.debug("Full removed items: %s", [vars(item) for item in removed])
+        logger.debug("Full fetched items: %s", [vars(item) for item in items])
+        return
+
+    # Threshold not met — clean up dumps unless DEBUG logging is active
+    if not logger.isEnabledFor(logging.DEBUG):
+        for p in dump_paths:
+            try:
+                os.remove(p)
+            except Exception:
+                pass
 
     storage.save_items_and_events(
         platform, wishlist_id, items, added, removed, price_changes
