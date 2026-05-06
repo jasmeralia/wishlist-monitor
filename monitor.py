@@ -10,19 +10,19 @@ from core.logger import get_logger
 from core import storage
 from core import run_context
 from core.diff import diff_items
-from core.retention import prune_diagnostics
+from core.retention import env_int, prune_diagnostics
 from core.report_html import build_html_report
 from core.emailer import send_email, get_global_recipients
 from fetchers import FETCHERS
 
 logger = get_logger(__name__)
 
-POLL_MINUTES = int(os.getenv("POLL_MINUTES", "10"))
+POLL_MINUTES = env_int("POLL_MINUTES", 10, 1)
 MODE = os.getenv("MODE", "daemon").lower()  # "daemon" or "once"
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data/config.json")
-REMOVAL_THRESHOLD = int(os.getenv("REMOVAL_THRESHOLD", "20"))
-DEBUG_DUMP_PRUNE_INTERVAL_MINUTES = int(
-    os.getenv("DEBUG_DUMP_PRUNE_INTERVAL_MINUTES", "60")
+REMOVAL_THRESHOLD = env_int("REMOVAL_THRESHOLD", 20, 1)
+DEBUG_DUMP_PRUNE_INTERVAL_MINUTES = env_int(
+    "DEBUG_DUMP_PRUNE_INTERVAL_MINUTES", 60, 1
 )
 
 
@@ -137,29 +137,6 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
 
     added, removed, price_changes = diff_items(previous_items, items)
     new_count = len(items)
-    readded_diagnostics = storage.find_readded_item_diagnostics(
-        platform,
-        wishlist_id,
-        added,
-        current_run_id=run_context.PROCESS_RUN_ID,
-        current_cycle_id=run_context.get_cycle_id(),
-    )
-    if readded_diagnostics:
-        logger.warning(
-            "Detected %d items readded after their most recent prior event was removal: %s",
-            len(readded_diagnostics),
-            [
-                {
-                    "item_id": item.item_id,
-                    "name": item.name,
-                    "removed_run_id": item.removed_run_id,
-                    "removed_cycle_id": item.removed_cycle_id,
-                    "current_run_id": item.current_run_id,
-                    "current_cycle_id": item.current_cycle_id,
-                }
-                for item in readded_diagnostics
-            ],
-        )
 
     if len(removed) >= REMOVAL_THRESHOLD:
         logger.warning(
@@ -198,6 +175,30 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
         logger.debug("Full removed items: %s", [vars(item) for item in removed])
         logger.debug("Full fetched items: %s", [vars(item) for item in items])
         return
+
+    readded_diagnostics = storage.find_readded_item_diagnostics(
+        platform,
+        wishlist_id,
+        added,
+        current_run_id=run_context.PROCESS_RUN_ID,
+        current_cycle_id=run_context.get_cycle_id(),
+    )
+    if readded_diagnostics:
+        logger.warning(
+            "Detected %d items readded after their most recent prior event was removal: %s",
+            len(readded_diagnostics),
+            [
+                {
+                    "item_id": item.item_id,
+                    "name": item.name,
+                    "removed_run_id": item.removed_run_id,
+                    "removed_cycle_id": item.removed_cycle_id,
+                    "current_run_id": item.current_run_id,
+                    "current_cycle_id": item.current_cycle_id,
+                }
+                for item in readded_diagnostics
+            ],
+        )
 
     # Threshold not met — clean up dumps unless DEBUG logging is active
     if not logger.isEnabledFor(logging.DEBUG):

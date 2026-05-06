@@ -18,7 +18,8 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _env_int(name: str, default: int, minimum: int) -> int:
+def env_int(name: str, default: int, minimum: int) -> int:
+    """Read an integer environment variable with fallback and lower bound."""
     raw = os.getenv(name)
     if raw is None:
         return default
@@ -113,8 +114,8 @@ def prune_debug_dumps() -> None:
     _prune_files(
         "debug dump",
         _debug_dump_files(debug_dir),
-        _env_int("DEBUG_DUMP_MAX_AGE_DAYS", 7, 0),
-        _env_int("DEBUG_DUMP_MAX_FILES", 500, 0),
+        env_int("DEBUG_DUMP_MAX_AGE_DAYS", 7, 0),
+        env_int("DEBUG_DUMP_MAX_FILES", 500, 0),
     )
 
 
@@ -150,8 +151,8 @@ def prune_log_files() -> None:
     _prune_files(
         "log file",
         _log_files(),
-        _env_int("LOG_MAX_AGE_DAYS", 7, 0),
-        _env_int("LOG_MAX_FILES", 100, 0),
+        env_int("LOG_MAX_AGE_DAYS", 7, 0),
+        env_int("LOG_MAX_FILES", 100, 0),
     )
 
 
