@@ -8,17 +8,22 @@ from typing import Any, Dict, List, Tuple
 
 from core.logger import get_logger
 from core import storage
+from core import run_context
 from core.diff import diff_items
+from core.retention import env_int, prune_diagnostics
 from core.report_html import build_html_report
 from core.emailer import send_email, get_global_recipients
 from fetchers import FETCHERS
 
 logger = get_logger(__name__)
 
-POLL_MINUTES = int(os.getenv("POLL_MINUTES", "10"))
+POLL_MINUTES = env_int("POLL_MINUTES", 10, 1)
 MODE = os.getenv("MODE", "daemon").lower()  # "daemon" or "once"
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data/config.json")
-REMOVAL_THRESHOLD = int(os.getenv("REMOVAL_THRESHOLD", "20"))
+REMOVAL_THRESHOLD = env_int("REMOVAL_THRESHOLD", 20, 1)
+DEBUG_DUMP_PRUNE_INTERVAL_MINUTES = env_int(
+    "DEBUG_DUMP_PRUNE_INTERVAL_MINUTES", 60, 1
+)
 
 
 def _wishlist_url(platform: str, identifier: str) -> str | None:
@@ -171,6 +176,30 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
         logger.debug("Full fetched items: %s", [vars(item) for item in items])
         return
 
+    readded_diagnostics = storage.find_readded_item_diagnostics(
+        platform,
+        wishlist_id,
+        added,
+        current_run_id=run_context.PROCESS_RUN_ID,
+        current_cycle_id=run_context.get_cycle_id(),
+    )
+    if readded_diagnostics:
+        logger.warning(
+            "Detected %d items readded after their most recent prior event was removal: %s",
+            len(readded_diagnostics),
+            [
+                {
+                    "item_id": item.item_id,
+                    "name": item.name,
+                    "removed_run_id": item.removed_run_id,
+                    "removed_cycle_id": item.removed_cycle_id,
+                    "current_run_id": item.current_run_id,
+                    "current_cycle_id": item.current_cycle_id,
+                }
+                for item in readded_diagnostics
+            ],
+        )
+
     # Threshold not met — clean up dumps unless DEBUG logging is active
     if not logger.isEnabledFor(logging.DEBUG):
         for p in dump_paths:
@@ -180,7 +209,14 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
                 pass
 
     storage.save_items_and_events(
-        platform, wishlist_id, items, added, removed, price_changes
+        platform,
+        wishlist_id,
+        items,
+        added,
+        removed,
+        price_changes,
+        run_id=run_context.PROCESS_RUN_ID,
+        cycle_id=run_context.get_cycle_id(),
     )
 
     if not (added or removed or price_changes):
@@ -188,18 +224,24 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
         return
 
     subject = (
-        f"[Wishlist Monitor] Changes detected on {platform.capitalize()} for {name}"
+        f"[Wishlist Monitor][cycle {run_context.get_cycle_id()}] "
+        f"Changes detected on {platform.capitalize()} for {name}"
     )
     html_body = build_html_report(
         platform,
         name,
-        wishlist_id,
         added,
         removed,
         price_changes,
         previous_count,
         new_count,
         wishlist_url=_wishlist_url(platform, identifier),
+        diagnostics={
+            "run_id": run_context.PROCESS_RUN_ID,
+            "cycle_id": run_context.get_cycle_id(),
+            "log_file": run_context.get_log_file_path(),
+        },
+        readded_diagnostics=readded_diagnostics,
     )
 
     recipients = get_recipients_for_wishlist(wl)
@@ -228,6 +270,14 @@ def _debug_log_wishlist_order(phase: str, wishlists: List[Dict[str, Any]]) -> No
 
 def run_once() -> int:
     """Run a single poll cycle across all configured wishlists."""
+    cycle_id = run_context.start_cycle()
+    logger.info(
+        "Starting one-shot run: run_id=%s cycle_id=%s log_file=%s.",
+        run_context.PROCESS_RUN_ID,
+        cycle_id,
+        run_context.get_log_file_path(),
+    )
+    prune_diagnostics()
     storage.ensure_db()
     cfg = load_config()
     wishlists = cfg.get("wishlists", [])
@@ -247,23 +297,36 @@ def run_once() -> int:
 
 def run_daemon() -> None:
     """Run as a continuous daemon, polling each wishlist on its configured interval."""
-    logger.info("Starting daemon; poll every %d minutes.", POLL_MINUTES)
+    logger.info(
+        "Starting daemon; poll every %d minutes. run_id=%s log_file=%s.",
+        POLL_MINUTES,
+        run_context.PROCESS_RUN_ID,
+        run_context.get_log_file_path(),
+    )
     storage.ensure_db()
     last_run_map: Dict[Tuple[str, str], float] = {}
+    last_prune_ts = 0.0
 
     while True:
         try:
             cfg = load_config()
             wishlists = cfg.get("wishlists", [])
             now = time.time()
+            cycle_id = run_context.start_cycle()
+
+            prune_interval_seconds = max(1, DEBUG_DUMP_PRUNE_INTERVAL_MINUTES) * 60
+            if now - last_prune_ts >= prune_interval_seconds:
+                prune_diagnostics()
+                last_prune_ts = now
 
             seed = time.time_ns()
             random.seed(seed)
             logger.debug(
-                "Daemon cycle start %s with seed %d (%d wishlists).",
+                "Daemon cycle start %s with seed %d (%d wishlists, cycle_id=%s).",
                 time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(now)),
                 seed,
                 len(wishlists),
+                cycle_id,
             )
 
             _debug_log_wishlist_order("daemon BEFORE shuffle", wishlists)

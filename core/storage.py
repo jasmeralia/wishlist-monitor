@@ -2,16 +2,31 @@
 import os
 import sqlite3
 import datetime
+from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 import pytz
 
 from .models import Item
 from .logger import get_logger
+from . import run_context
 
 logger = get_logger(__name__)
 
 DB_PATH = os.getenv("DB_PATH", "/data/wishlist_state.sqlite3")
+
+
+@dataclass
+class ReaddedItemDiagnostic:
+    """Prior removal metadata for an item that was added again in this cycle."""
+
+    item_id: str
+    name: str
+    removed_ts: str
+    removed_run_id: str
+    removed_cycle_id: str
+    current_run_id: str
+    current_cycle_id: str
 
 
 def _connect() -> sqlite3.Connection:
@@ -58,11 +73,24 @@ def ensure_db() -> None:
                 item_id TEXT,
                 name TEXT,
                 from_price_cents INTEGER,
-                to_price_cents INTEGER
+                to_price_cents INTEGER,
+                run_id TEXT,
+                cycle_id TEXT
             )
         """
         )
+        _ensure_column(cur, "events", "run_id", "TEXT")
+        _ensure_column(cur, "events", "cycle_id", "TEXT")
         con.commit()
+
+
+def _ensure_column(
+    cur: sqlite3.Cursor, table_name: str, column_name: str, column_type: str
+) -> None:
+    cur.execute(f"PRAGMA table_info({table_name})")
+    existing = {row[1] for row in cur.fetchall()}
+    if column_name not in existing:
+        cur.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
 
 
 def get_previous_items(platform: str, wishlist_id: str) -> Dict[str, Item]:
@@ -106,6 +134,51 @@ def get_previous_item_count(platform: str, wishlist_id: str) -> int:
     return row[0] if row and row[0] is not None else 0
 
 
+def find_readded_item_diagnostics(
+    platform: str,
+    wishlist_id: str,
+    added: List[Item],
+    current_run_id: str | None = None,
+    current_cycle_id: str | None = None,
+) -> List[ReaddedItemDiagnostic]:
+    """Return added items whose most recent prior event was a removal."""
+    event_run_id = current_run_id or run_context.PROCESS_RUN_ID
+    event_cycle_id = current_cycle_id or run_context.get_cycle_id()
+    diagnostics: List[ReaddedItemDiagnostic] = []
+
+    with _connect() as con:
+        cur = con.cursor()
+        for item in added:
+            cur.execute(
+                """
+                SELECT event_type, ts, run_id, cycle_id
+                FROM events
+                WHERE platform=? AND wishlist_id=? AND item_id=?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (platform, wishlist_id, item.item_id),
+            )
+            row = cur.fetchone()
+            if not row or row[0] != "removed":
+                continue
+
+            _, removed_ts, removed_run_id, removed_cycle_id = row
+            diagnostics.append(
+                ReaddedItemDiagnostic(
+                    item_id=item.item_id,
+                    name=item.name,
+                    removed_ts=removed_ts or "",
+                    removed_run_id=removed_run_id or "<unknown>",
+                    removed_cycle_id=removed_cycle_id or "<unknown>",
+                    current_run_id=event_run_id,
+                    current_cycle_id=event_cycle_id,
+                )
+            )
+
+    return diagnostics
+
+
 def save_items_and_events(
     platform: str,
     wishlist_id: str,
@@ -113,9 +186,13 @@ def save_items_and_events(
     added: List[Item],
     removed: List[Item],
     price_changes: List[Tuple[Item, int, int]],
+    run_id: str | None = None,
+    cycle_id: str | None = None,
 ) -> None:
     """Persist current items and diff events into SQLite."""
     ts = now_utc_iso()
+    event_run_id = run_id or run_context.PROCESS_RUN_ID
+    event_cycle_id = cycle_id or run_context.get_cycle_id()
     with _connect() as con:
         cur = con.cursor()
 
@@ -158,9 +235,9 @@ def save_items_and_events(
                 """
                 INSERT INTO events (
                     ts, platform, wishlist_id, event_type,
-                    item_id, name, from_price_cents, to_price_cents
+                    item_id, name, from_price_cents, to_price_cents, run_id, cycle_id
                 )
-                VALUES (?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
                 (
                     ts,
@@ -171,6 +248,8 @@ def save_items_and_events(
                     it.name,
                     None,
                     it.price_cents,
+                    event_run_id,
+                    event_cycle_id,
                 ),
             )
 
@@ -180,9 +259,9 @@ def save_items_and_events(
                 """
                 INSERT INTO events (
                     ts, platform, wishlist_id, event_type,
-                    item_id, name, from_price_cents, to_price_cents
+                    item_id, name, from_price_cents, to_price_cents, run_id, cycle_id
                 )
-                VALUES (?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
                 (
                     ts,
@@ -193,6 +272,8 @@ def save_items_and_events(
                     it.name,
                     before,
                     after,
+                    event_run_id,
+                    event_cycle_id,
                 ),
             )
 
@@ -202,9 +283,9 @@ def save_items_and_events(
                 """
                 INSERT INTO events (
                     ts, platform, wishlist_id, event_type,
-                    item_id, name, from_price_cents, to_price_cents
+                    item_id, name, from_price_cents, to_price_cents, run_id, cycle_id
                 )
-                VALUES (?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
                 (
                     ts,
@@ -215,6 +296,8 @@ def save_items_and_events(
                     it.name,
                     None,
                     None,
+                    event_run_id,
+                    event_cycle_id,
                 ),
             )
             cur.execute(

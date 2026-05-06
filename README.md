@@ -236,9 +236,14 @@ THRONE_DEBUG_LOG_SAMPLES="true"  # log a few parsed items when debug logging is 
 
 ```bash
 DEBUG_DIR="/data/debug_dumps"    # shared directory for HTML debug dumps (Amazon & Throne)
+DEBUG_DUMP_PRUNE_ENABLED="true"  # prune old debug dumps automatically
+DEBUG_DUMP_MAX_AGE_DAYS="7"      # remove debug dumps older than this many days
+DEBUG_DUMP_MAX_FILES="500"       # keep at most this many debug dump files
+DEBUG_DUMP_PRUNE_INTERVAL_MINUTES="60"
 ```
 
-- When `LOG_LEVEL=DEBUG`, both Amazon and Throne dump the raw fetched HTML into `DEBUG_DIR`.
+- Both Amazon and Throne dump the raw fetched HTML into `DEBUG_DIR` for scrape diagnostics. Dump filenames include the active cycle ID when one is available.
+- Debug dump pruning only removes known `amazon_*.html` and `throne_*.html` files inside `DEBUG_DIR`.
 
 ### Paths and logging
 
@@ -251,9 +256,13 @@ LOG_TO_FILE="true"
 LOG_TO_STDOUT="true"
 LOG_MAX_BYTES="2097152"   # rotate logs after ~2MB
 LOG_BACKUPS="3"           # number of rotated log files to keep
+LOG_PRUNE_ENABLED="true"  # prune old run-specific log files automatically
+LOG_MAX_AGE_DAYS="7"      # remove run-specific log files older than this many days
+LOG_MAX_FILES="100"       # keep at most this many run-specific log files
+RUN_ID=""                 # optional override for the process run ID
 ```
 
-The SQLite database and log file should be on a persistent volume (such as `/data`). Log rotation is controlled by `LOG_MAX_BYTES` and `LOG_BACKUPS`.
+The SQLite database and log file should be on a persistent volume (such as `/data`). Log rotation is controlled by `LOG_MAX_BYTES` and `LOG_BACKUPS`. Each process run adds a run ID to the configured log filename, and each daemon poll cycle adds a cycle ID to log lines, debug dump filenames, notification emails, and stored change events. Log pruning removes old run-specific log files that match the configured `LOG_FILE` basename plus a run ID suffix.
 
 ---
 

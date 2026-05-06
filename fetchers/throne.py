@@ -12,6 +12,7 @@ from tenacity import retry, wait_exponential_jitter, stop_after_attempt, RetryEr
 
 from core.models import Item
 from core.logger import get_logger
+from core import run_context
 
 logger = get_logger(__name__)
 
@@ -22,7 +23,9 @@ def _dump_html(wishlist_name: str | None, html: str) -> str | None:
         os.makedirs(DEBUG_DIR, exist_ok=True)
         ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", wishlist_name or "unknown")
-        path = os.path.join(DEBUG_DIR, f"throne_{safe}_{ts}.html")
+        cycle_id = run_context.get_cycle_id()
+        cycle_suffix = f"_{cycle_id}" if cycle_id else ""
+        path = os.path.join(DEBUG_DIR, f"throne_{safe}_{ts}{cycle_suffix}.html")
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
         logger.debug("Throne HTML dumped to %s", path)
