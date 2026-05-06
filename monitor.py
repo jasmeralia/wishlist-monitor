@@ -224,8 +224,7 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
         return
 
     subject = (
-        f"[Wishlist Monitor][cycle {run_context.get_cycle_id()}] "
-        f"Changes detected on {platform.capitalize()} for {name}"
+        f"[Wishlist Monitor] Changes detected on {platform.capitalize()} for {name}"
     )
     html_body = build_html_report(
         platform,
