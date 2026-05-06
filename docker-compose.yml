@@ -19,9 +19,11 @@ services:
       POLL_MINUTES: "30"
       MODE: "daemon"
       LOG_LEVEL: "INFO"
-      DEBUG_DUMP_MAX_AGE_DAYS: "3"
+      DEBUG_DUMP_MAX_AGE_DAYS: "7"
       DEBUG_DUMP_MAX_FILES: "500"
       DEBUG_DUMP_PRUNE_INTERVAL_MINUTES: "60"
+      LOG_MAX_AGE_DAYS: "7"
+      LOG_MAX_FILES: "100"
 
       # DB & log paths inside container
       DB_PATH: "/data/wishlist_state.sqlite3"

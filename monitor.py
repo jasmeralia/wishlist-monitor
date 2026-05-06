@@ -10,7 +10,7 @@ from core.logger import get_logger
 from core import storage
 from core import run_context
 from core.diff import diff_items
-from core.debug_dumps import prune_debug_dumps
+from core.retention import prune_diagnostics
 from core.report_html import build_html_report
 from core.emailer import send_email, get_global_recipients
 from fetchers import FETCHERS
@@ -276,7 +276,7 @@ def run_once() -> int:
         cycle_id,
         run_context.get_log_file_path(),
     )
-    prune_debug_dumps()
+    prune_diagnostics()
     storage.ensure_db()
     cfg = load_config()
     wishlists = cfg.get("wishlists", [])
@@ -315,7 +315,7 @@ def run_daemon() -> None:
 
             prune_interval_seconds = max(1, DEBUG_DUMP_PRUNE_INTERVAL_MINUTES) * 60
             if now - last_prune_ts >= prune_interval_seconds:
-                prune_debug_dumps()
+                prune_diagnostics()
                 last_prune_ts = now
 
             seed = time.time_ns()
