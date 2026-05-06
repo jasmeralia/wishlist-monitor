@@ -16,6 +16,7 @@ from bs4.element import Tag
 
 from core.logger import get_logger
 from core.models import Item
+from core import run_context
 
 logger = get_logger(__name__)
 
@@ -49,7 +50,9 @@ def _dump_html(wishlist_name: str | None, page_index: int, html: str) -> Path | 
     """Write HTML to a timestamped file; always writes for threshold analysis."""
     timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe = _sanitize(wishlist_name or "unknown")
-    path = DEBUG_DIR / f"amazon_{safe}_page{page_index}_{timestamp}.html"
+    cycle_id = run_context.get_cycle_id()
+    cycle_suffix = f"_{cycle_id}" if cycle_id else ""
+    path = DEBUG_DIR / f"amazon_{safe}_page{page_index}_{timestamp}{cycle_suffix}.html"
     try:
         path.write_text(html, encoding="utf-8")
         logger.debug("Dumped Amazon HTML to %s", path)
