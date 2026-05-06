@@ -76,21 +76,21 @@
       {% endfor %}
     {% endif %}
 
-	    {% if removed %}
-	      <h3>🔴 Removed</h3>
-	      {% for item in removed %}
-	        <div class="card">
-	          <div><strong>{{ item.name }}</strong></div>
-	          <div style="color:#c62828 !important;">Removed{% if item.price_str %} · Last seen at {{ item.price_str }}{% endif %}</div>
-	          {% if item.image_url %}
-	            <img src="{{ item.image_url }}" width="64" height="64" alt="" style="border-radius:6px;object-fit:cover;" />
-	          {% endif %}
-	          {% if item.product_url %}
-	            <div><a href="{{ item.product_url }}">View item</a></div>
-	          {% endif %}
-	        </div>
-	      {% endfor %}
-	    {% endif %}
+      {% if removed %}
+        <h3>🔴 Removed</h3>
+        {% for item in removed %}
+          <div class="card">
+            <div><strong>{{ item.name }}</strong></div>
+            <div style="color:#c62828 !important;">Removed{% if item.price_str %} · Last seen at {{ item.price_str }}{% endif %}</div>
+            {% if item.image_url %}
+              <img src="{{ item.image_url }}" width="64" height="64" alt="" style="border-radius:6px;object-fit:cover;" />
+            {% endif %}
+            {% if item.product_url %}
+              <div><a href="{{ item.product_url }}">View item</a></div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% endif %}
 
     {% if price_changes %}
       <h3>🟡 Price Changes</h3>
