@@ -1,4 +1,5 @@
 """SQLite persistence layer for wishlist items and change events."""
+
 import os
 import sqlite3
 import datetime

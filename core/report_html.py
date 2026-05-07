@@ -1,4 +1,5 @@
 """HTML email report builder using Jinja2 templates."""
+
 import os
 from pathlib import Path
 from typing import List, Tuple

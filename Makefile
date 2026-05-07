@@ -1,22 +1,30 @@
 VENV := .venv
+PYTHON := $(if $(wildcard $(VENV)/bin/python),$(VENV)/bin/python,python)
 RUFF := $(if $(wildcard $(VENV)/bin/ruff),$(VENV)/bin/ruff,ruff)
 MYPY := $(if $(wildcard $(VENV)/bin/mypy),$(VENV)/bin/mypy,mypy)
 PYLINT := $(if $(wildcard $(VENV)/bin/pylint),$(VENV)/bin/pylint,pylint)
 SRC := monitor.py core fetchers
+TESTS := tests
 
-.PHONY: lint lint-fix ruff pylint mypy
+.PHONY: lint lint-fix ruff ruff-format pylint mypy test
 
-lint: ruff pylint mypy
+lint: ruff-format ruff pylint mypy
 
 lint-fix:
-	$(RUFF) check --fix $(SRC)
-	$(RUFF) format $(SRC)
+	$(RUFF) check --fix $(SRC) $(TESTS)
+	$(RUFF) format $(SRC) $(TESTS)
 
 ruff:
-	$(RUFF) check $(SRC)
+	$(RUFF) check $(SRC) $(TESTS)
+
+ruff-format:
+	$(RUFF) format --check $(SRC) $(TESTS)
 
 pylint:
 	$(PYLINT) $(SRC)
 
 mypy:
 	$(MYPY) $(SRC)
+
+test:
+	$(PYTHON) -m pytest $(TESTS)

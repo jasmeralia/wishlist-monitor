@@ -1,4 +1,5 @@
 """Run and cycle identifiers used to correlate logs, emails, and events."""
+
 import contextvars
 import datetime
 import os
@@ -11,8 +12,7 @@ def _utc_timestamp() -> str:
 
 
 PROCESS_RUN_ID = (
-    os.getenv("RUN_ID", "").strip()
-    or f"{_utc_timestamp()}-{uuid.uuid4().hex[:8]}"
+    os.getenv("RUN_ID", "").strip() or f"{_utc_timestamp()}-{uuid.uuid4().hex[:8]}"
 )
 
 _CYCLE_ID: contextvars.ContextVar[str] = contextvars.ContextVar("cycle_id", default="")

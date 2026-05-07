@@ -1,7 +1,8 @@
 # AGENTS.md — Wishlist Monitor
 
-> **All changes must pass `make lint` before being committed.**
-> Run `make lint-fix` first to auto-fix ruff issues, then `make lint` to confirm clean.
+> **After any change, run `make lint-fix && make lint && make test` before committing.**
+> `make lint-fix` auto-fixes ruff issues, `make lint` confirms formatting/lint/type
+> checks are clean, and `make test` runs the pytest suite.
 
 ## Project Overview
 
@@ -41,7 +42,8 @@ templates/
 | ruff | style + import linting | `make ruff` |
 | pylint | structural analysis | `make pylint` |
 | mypy | type checking | `make mypy` |
-| all | all three | `make lint` |
+| pytest | unit tests | `make test` |
+| all lint | format + ruff + pylint + mypy | `make lint` |
 | auto-fix | ruff --fix + format | `make lint-fix` |
 
 Configuration lives in `pyproject.toml` (`[tool.mypy]`, `[tool.pylint.*]`).
@@ -58,7 +60,9 @@ Ruff uses its defaults (line length 88).
   `# pylint: disable=global-statement` when mutating it.
 - **Imports**: stdlib before third-party before local; enforced by ruff.
 - **Logging**: use `get_logger(__name__)` from `core.logger`; never `print()`.
-- **Formatting**: ruff handles formatting — run `make lint-fix` after edits.
+- **Verification**: after edits, run `make lint-fix && make lint && make test`.
+- **Formatting**: ruff handles formatting; `make lint` includes
+  `ruff format --check`.
 - **Indentation preference**: use tabs over spaces for indentation in newly authored
   agent-facing instructions unless a file format or tool requires otherwise. Makefile
   recipe lines are the explicit exception and must use tabs.
@@ -111,12 +115,12 @@ Ruff uses its defaults (line length 88).
    returning `tuple[list[Item], list[str]]`.
 2. Register it in `fetchers/__init__.py` under `FETCHERS`.
 3. Add a `_wishlist_url()` branch in `monitor.py` if applicable.
-4. Ensure `make lint` passes before committing.
+4. Ensure `make lint-fix && make lint && make test` passes before committing.
 
 ## Docker
 
 - Image published to GHCR via `.github/workflows/docker-ghcr.yml`.
-- The workflow runs `make lint` in a dedicated `lint` job; the `build-and-push` job
-  only runs if lint passes (`needs: lint`).
+- The workflow runs `make lint` and `make test`; Docker publication only runs after
+  both pass.
 - Base image: `python:3.10-slim` (or newer slim).
 - App lives at `/app`; data volume at `/data`.

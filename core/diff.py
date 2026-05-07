@@ -1,4 +1,5 @@
 """Diff logic for computing added, removed, and price-changed items between polls."""
+
 import os
 from typing import Dict, List, Tuple
 

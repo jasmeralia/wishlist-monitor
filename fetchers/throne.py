@@ -1,4 +1,5 @@
 """Throne wishlist fetcher with three extraction strategies: NEXT_DATA, JSON-LD, grid."""
+
 import os
 import json
 import datetime
@@ -187,7 +188,11 @@ def _parse_jsonld_offer(offers: Any, default_currency: str = "USD") -> tuple[int
     """Extract (price_cents, currency) from a JSON-LD offers object or list."""
     price_cents = -1
     currency = default_currency
-    offer = offers if isinstance(offers, dict) else (offers[0] if isinstance(offers, list) and offers else None)
+    offer = (
+        offers
+        if isinstance(offers, dict)
+        else (offers[0] if isinstance(offers, list) and offers else None)
+    )
     if offer is None:
         return price_cents, currency
     price = offer.get("price")
@@ -211,7 +216,9 @@ def _parse_jsonld_item_entry(el: Any) -> Optional[Item]:
     price_cents, currency = _parse_jsonld_offer(offers) if offers else (-1, "USD")
     item_id = item.get("@id") or (url and hashlib.sha1(url.encode()).hexdigest())
     return Item(
-        item_id=str(item_id) if item_id else hashlib.sha1((name + url).encode()).hexdigest(),
+        item_id=str(item_id)
+        if item_id
+        else hashlib.sha1((name + url).encode()).hexdigest(),
         name=name.strip(),
         price_cents=price_cents,
         currency=currency,
@@ -232,7 +239,9 @@ def _extract_items_jsonld(html: str) -> Optional[List[Item]]:
             continue
         data_list = data if isinstance(data, list) else [data]
         for d in data_list:
-            if d.get("@type") == "ItemList" and isinstance(d.get("itemListElement"), list):
+            if d.get("@type") == "ItemList" and isinstance(
+                d.get("itemListElement"), list
+            ):
                 for el in d["itemListElement"]:
                     item = _parse_jsonld_item_entry(el)
                     if item is not None:

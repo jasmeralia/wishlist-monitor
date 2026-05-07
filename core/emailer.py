@@ -1,4 +1,5 @@
 """Email delivery via SMTP, configured entirely from environment variables."""
+
 import os
 import smtplib
 from email.mime.text import MIMEText

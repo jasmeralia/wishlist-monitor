@@ -2,3 +2,4 @@
 ruff
 mypy
 pylint
+pytest
