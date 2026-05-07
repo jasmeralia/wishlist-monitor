@@ -1,7 +1,8 @@
 """Wishlist monitor entry point: runs once or as a polling daemon."""
+
 import logging
-import os
 import json
+import os
 import time
 import random
 from typing import Any, Dict, List, Tuple
@@ -10,6 +11,7 @@ from core.logger import get_logger
 from core import storage
 from core import run_context
 from core.diff import diff_items
+from core.models import FetchResult
 from core.retention import env_int, prune_diagnostics
 from core.report_html import build_html_report
 from core.emailer import send_email, get_global_recipients
@@ -21,9 +23,11 @@ POLL_MINUTES = env_int("POLL_MINUTES", 10, 1)
 MODE = os.getenv("MODE", "daemon").lower()  # "daemon" or "once"
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data/config.json")
 REMOVAL_THRESHOLD = env_int("REMOVAL_THRESHOLD", 20, 1)
-DEBUG_DUMP_PRUNE_INTERVAL_MINUTES = env_int(
-    "DEBUG_DUMP_PRUNE_INTERVAL_MINUTES", 60, 1
+REMOVAL_DROP_PERCENT_THRESHOLD = env_int("REMOVAL_DROP_PERCENT_THRESHOLD", 25, 1)
+REMOVAL_MIN_PREVIOUS_COUNT_FOR_DROP_GUARD = env_int(
+    "REMOVAL_MIN_PREVIOUS_COUNT_FOR_DROP_GUARD", 10, 1
 )
+DEBUG_DUMP_PRUNE_INTERVAL_MINUTES = env_int("DEBUG_DUMP_PRUNE_INTERVAL_MINUTES", 60, 1)
 
 
 def _wishlist_url(platform: str, identifier: str) -> str | None:
@@ -81,6 +85,20 @@ def get_recipients_for_wishlist(wl: Dict[str, Any]) -> List[str]:
     return get_global_recipients()
 
 
+def normalize_fetch_result(result: Any) -> FetchResult:
+    """Convert legacy fetcher tuple results to FetchResult."""
+    if isinstance(result, FetchResult):
+        return result
+
+    items, dump_paths = result
+    return FetchResult(
+        items=items or [],
+        dump_paths=dump_paths or [],
+        complete=True,
+        failure_reason=None,
+    )
+
+
 def process_wishlist(wl: Dict[str, Any]) -> None:
     """Fetch, diff, and notify for a single wishlist config entry."""
     platform = wl.get("platform", "").strip().lower()
@@ -118,7 +136,26 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
     previous_items = storage.get_previous_items(platform, wishlist_id)
     previous_count = len(previous_items)
 
-    items, dump_paths = fetcher(identifier, name)
+    fetch_result = normalize_fetch_result(fetcher(identifier, name))
+    items = fetch_result.items
+    dump_paths = fetch_result.dump_paths
+
+    if not fetch_result.complete:
+        logger.error(
+            "Incomplete fetch for %s '%s' (%s); skipping diff/save/notification. "
+            "reason=%s previous_count=%d fetched_count=%d dumps=%s run_id=%s cycle_id=%s",
+            platform,
+            name,
+            wishlist_id,
+            fetch_result.failure_reason or "<unknown>",
+            previous_count,
+            len(items),
+            [str(p) for p in dump_paths],
+            run_context.PROCESS_RUN_ID,
+            run_context.get_cycle_id(),
+        )
+        return
+
     if not items:
         if previous_count > 0:
             logger.error(
@@ -137,6 +174,45 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
 
     added, removed, price_changes = diff_items(previous_items, items)
     new_count = len(items)
+
+    if (
+        previous_count >= REMOVAL_MIN_PREVIOUS_COUNT_FOR_DROP_GUARD
+        and new_count < previous_count
+    ):
+        drop_pct = (previous_count - new_count) * 100.0 / previous_count
+        if drop_pct >= REMOVAL_DROP_PERCENT_THRESHOLD:
+            logger.warning(
+                "REMOVAL DROP GUARD TRIGGERED for %s '%s' (%s): "
+                "count dropped from %d to %d (%.1f%%, threshold=%d%%). "
+                "Skipping database save and notifications. "
+                "This may indicate a partial scrape/parse failure.",
+                platform,
+                name,
+                wishlist_id,
+                previous_count,
+                new_count,
+                drop_pct,
+                REMOVAL_DROP_PERCENT_THRESHOLD,
+            )
+            logger.warning(
+                "Drop guard diagnostics — previous_count=%d, fetched_count=%d, "
+                "added=%d, removed=%d, price_changes=%d, run_id=%s, cycle_id=%s",
+                previous_count,
+                new_count,
+                len(added),
+                len(removed),
+                len(price_changes),
+                run_context.PROCESS_RUN_ID,
+                run_context.get_cycle_id(),
+            )
+            if dump_paths:
+                logger.warning(
+                    "HTML captures for this cycle: %s",
+                    [str(p) for p in dump_paths],
+                )
+            logger.debug("Full removed items: %s", [vars(item) for item in removed])
+            logger.debug("Full fetched items: %s", [vars(item) for item in items])
+            return
 
     if len(removed) >= REMOVAL_THRESHOLD:
         logger.warning(
@@ -246,9 +322,8 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
     recipients = get_recipients_for_wishlist(wl)
     if not recipients:
         logger.error("No recipients for wishlist '%s' (platform=%s).", name, platform)
-        return
-
-    send_email(subject, html_body, None, recipients)
+    else:
+        send_email(subject, html_body, None, recipients)
 
 
 def _wishlist_debug_id(wl: Dict[str, Any]) -> str:
