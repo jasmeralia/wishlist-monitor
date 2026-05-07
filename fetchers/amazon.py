@@ -1,4 +1,5 @@
 """Amazon wishlist fetcher using the mobile HTML layout."""
+
 import datetime
 import math
 import os
@@ -15,7 +16,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 
 from core.logger import get_logger
-from core.models import Item
+from core.models import FetchResult, Item
 from core import run_context
 
 logger = get_logger(__name__)
@@ -48,7 +49,9 @@ def _sanitize(name: str) -> str:
 
 def _dump_html(wishlist_name: str | None, page_index: int, html: str) -> Path | None:
     """Write HTML to a timestamped file; always writes for threshold analysis."""
-    timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.datetime.now(tz=datetime.timezone.utc).strftime(
+        "%Y%m%d_%H%M%S"
+    )
     safe = _sanitize(wishlist_name or "unknown")
     cycle_id = run_context.get_cycle_id()
     cycle_suffix = f"_{cycle_id}" if cycle_id else ""
@@ -265,9 +268,7 @@ def _apply_global_spacing(
     _LAST_AMAZON_FETCH_TS = time.time()
 
 
-def fetch_items(
-    identifier: str, wishlist_name: str | None = None
-) -> tuple[list[Item], list[Path]]:
+def fetch_items(identifier: str, wishlist_name: str | None = None) -> FetchResult:
     """
     Fetch all items for a given Amazon wishlist using the mobile wishlist layout.
 
@@ -299,7 +300,7 @@ def fetch_items(
     }
 
     all_items: list[Item] = []
-    dump_paths: list[Path] = []
+    dump_paths: list[Path | str] = []
     seen_ids: set[str] = set()
     next_url: str | None = first_url
     page = 0
@@ -317,12 +318,22 @@ def fetch_items(
                 if looks_like_captcha_or_block(html):
                     attempt += 1
                     if attempt >= AMAZON_MAX_PAGE_RETRIES:
+                        failure_reason = (
+                            f"captcha_persisted page={page} url={current_url}"
+                        )
                         logger.warning(
-                            "CAPTCHA/robot page persisted for wishlist '%s' at %s; giving up for this run.",
+                            "CAPTCHA/robot page persisted for wishlist '%s' at %s; "
+                            "giving up for this run with %d partial items.",
                             wishlist_name or identifier,
                             current_url,
+                            len(all_items),
                         )
-                        return all_items, dump_paths
+                        return FetchResult(
+                            items=all_items,
+                            dump_paths=dump_paths,
+                            complete=False,
+                            failure_reason=failure_reason,
+                        )
                     sleep_for = random.uniform(CAPTCHA_SLEEP * 0.5, CAPTCHA_SLEEP * 1.5)
                     logger.warning(
                         "Detected CAPTCHA/robot page for wishlist '%s' at %s; sleeping %.1fs before retry (%d/%d).",
@@ -346,7 +357,15 @@ def fetch_items(
                         attempt,
                         exc,
                     )
-                    return all_items, dump_paths
+                    return FetchResult(
+                        items=all_items,
+                        dump_paths=dump_paths,
+                        complete=False,
+                        failure_reason=(
+                            f"fetch_failed_after_retries page={page} "
+                            f"url={current_url}: {exc}"
+                        ),
+                    )
                 sleep_for = random.uniform(FAIL_SLEEP * 0.5, FAIL_SLEEP * 1.5)
                 logger.warning(
                     "Error fetching Amazon page %s for wishlist '%s' (attempt %d/%d): %s. "
@@ -367,7 +386,12 @@ def fetch_items(
                 current_url,
                 wishlist_name or identifier,
             )
-            return all_items, dump_paths
+            return FetchResult(
+                items=all_items,
+                dump_paths=dump_paths,
+                complete=False,
+                failure_reason=f"no_html page={page} url={current_url}",
+            )
 
         p = _dump_html(wishlist_name, page, html)
         if p:
@@ -448,4 +472,4 @@ def fetch_items(
         len(all_items),
         wishlist_name or identifier,
     )
-    return all_items, dump_paths
+    return FetchResult(items=all_items, dump_paths=dump_paths, complete=True)
