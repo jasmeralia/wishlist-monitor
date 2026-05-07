@@ -27,4 +27,4 @@ mypy:
 	$(MYPY) $(SRC)
 
 test:
-	$(PYTHON) -m unittest discover -s $(TESTS)
+	$(PYTHON) -m pytest $(TESTS)

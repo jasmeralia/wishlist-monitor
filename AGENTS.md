@@ -2,7 +2,7 @@
 
 > **After any change, run `make lint-fix && make lint && make test` before committing.**
 > `make lint-fix` auto-fixes ruff issues, `make lint` confirms formatting/lint/type
-> checks are clean, and `make test` runs the unit test suite.
+> checks are clean, and `make test` runs the pytest suite.
 
 ## Project Overview
 
@@ -42,7 +42,7 @@ templates/
 | ruff | style + import linting | `make ruff` |
 | pylint | structural analysis | `make pylint` |
 | mypy | type checking | `make mypy` |
-| tests | unit tests | `make test` |
+| pytest | unit tests | `make test` |
 | all lint | format + ruff + pylint + mypy | `make lint` |
 | auto-fix | ruff --fix + format | `make lint-fix` |
 
