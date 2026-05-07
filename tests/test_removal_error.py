@@ -1,4 +1,5 @@
 """Regression tests for incomplete wishlist fetch removal guards."""
+
 import os
 import sqlite3
 import tempfile
@@ -11,10 +12,10 @@ _IMPORT_TMP = tempfile.TemporaryDirectory()
 os.environ["DEBUG_DIR"] = str(Path(_IMPORT_TMP.name) / "debug_dumps")
 os.environ["LOG_TO_FILE"] = "false"
 
-import monitor
-from core import storage
-from core.models import FetchResult, Item
-from fetchers import amazon
+import monitor  # noqa: E402
+from core import storage  # noqa: E402
+from core.models import FetchResult, Item  # noqa: E402
+from fetchers import amazon  # noqa: E402
 
 
 def _item(item_id: str) -> Item:
@@ -97,6 +98,22 @@ class MonitorRemovalGuardTests(unittest.TestCase):
         self.assertEqual(set(remaining), {"a", "b", "c"})
         self.assertEqual(_event_count("removed"), 0)
 
+    def test_legacy_tuple_fetch_result_is_treated_as_complete(self) -> None:
+        """Legacy fetchers can still return (items, dump_paths) tuples."""
+        result = monitor.normalize_fetch_result(([_item("a")], ["dump.html"]))
+
+        self.assertTrue(result.complete)
+        self.assertEqual([item.item_id for item in result.items], ["a"])
+        self.assertEqual(result.dump_paths, ["dump.html"])
+
+    def test_legacy_none_items_are_normalized_to_empty_list(self) -> None:
+        """Legacy failure tuples with None items normalize without crashing."""
+        result = monitor.normalize_fetch_result((None, []))
+
+        self.assertTrue(result.complete)
+        self.assertEqual(result.items, [])
+        self.assertEqual(result.dump_paths, [])
+
     def test_complete_fetch_persists_legitimate_removal(self) -> None:
         """A complete fetch still records removals when guards do not trigger."""
         previous = [_item("a"), _item("b"), _item("c")]
@@ -136,6 +153,43 @@ class MonitorRemovalGuardTests(unittest.TestCase):
         self.assertEqual(len(remaining), 51)
         self.assertEqual(_event_count("removed"), 0)
 
+    def test_zero_item_fetch_with_prior_state_preserves_rows(self) -> None:
+        """A complete zero-item fetch keeps prior rows when prior state exists."""
+        previous = [_item("a"), _item("b")]
+        _seed_items("fake", "wishlist-1", previous)
+
+        self._run_with_fetcher(
+            "fake",
+            lambda _identifier, _name: FetchResult(
+                items=[],
+                dump_paths=[],
+                complete=True,
+            ),
+        )
+
+        remaining = storage.get_previous_items("fake", "wishlist-1")
+        self.assertEqual(set(remaining), {"a", "b"})
+        self.assertEqual(_event_count("removed"), 0)
+
+    def test_absolute_removal_threshold_preserves_rows(self) -> None:
+        """The existing absolute removal threshold still blocks large removals."""
+        previous = [_item(str(i)) for i in range(25)]
+        _seed_items("fake", "wishlist-1", previous)
+        monitor.REMOVAL_DROP_PERCENT_THRESHOLD = 100
+
+        self._run_with_fetcher(
+            "fake",
+            lambda _identifier, _name: FetchResult(
+                items=[_item("0")],
+                dump_paths=[],
+                complete=True,
+            ),
+        )
+
+        remaining = storage.get_previous_items("fake", "wishlist-1")
+        self.assertEqual(len(remaining), 25)
+        self.assertEqual(_event_count("removed"), 0)
+
 
 class AmazonFetchResultTests(unittest.TestCase):
     """Tests for Amazon fetch completion status."""
@@ -147,6 +201,7 @@ class AmazonFetchResultTests(unittest.TestCase):
         self.old_min_spacing = amazon.AMAZON_MIN_SPACING
         self.old_page_sleep = amazon.PAGE_SLEEP
         self.old_captcha_sleep = amazon.CAPTCHA_SLEEP
+        self.old_fail_sleep = amazon.FAIL_SLEEP
         self.old_retries = amazon.AMAZON_MAX_PAGE_RETRIES
         self.old_last_fetch = amazon._LAST_AMAZON_FETCH_TS
         amazon.DEBUG_DIR = Path(self.tmp.name)
@@ -154,6 +209,7 @@ class AmazonFetchResultTests(unittest.TestCase):
         amazon.AMAZON_MIN_SPACING = 0
         amazon.PAGE_SLEEP = 0
         amazon.CAPTCHA_SLEEP = 0
+        amazon.FAIL_SLEEP = 0
         amazon.AMAZON_MAX_PAGE_RETRIES = 2
         amazon._LAST_AMAZON_FETCH_TS = 0.0
 
@@ -162,6 +218,7 @@ class AmazonFetchResultTests(unittest.TestCase):
         amazon.AMAZON_MIN_SPACING = self.old_min_spacing
         amazon.PAGE_SLEEP = self.old_page_sleep
         amazon.CAPTCHA_SLEEP = self.old_captcha_sleep
+        amazon.FAIL_SLEEP = self.old_fail_sleep
         amazon.AMAZON_MAX_PAGE_RETRIES = self.old_retries
         amazon._LAST_AMAZON_FETCH_TS = self.old_last_fetch
 
@@ -199,6 +256,23 @@ class AmazonFetchResultTests(unittest.TestCase):
         self.assertFalse(result.complete)
         self.assertIn("captcha_persisted", result.failure_reason or "")
         self.assertEqual([item.item_id for item in result.items], ["a", "b"])
+
+    def test_fetch_failure_after_retries_is_incomplete(self) -> None:
+        """Amazon request failures produce an incomplete result after retries."""
+        first_page = self._page("a", "/page-1")
+        errors = [
+            amazon.AmazonError("503 Service Unavailable"),
+            amazon.AmazonError("503 Service Unavailable"),
+        ]
+
+        with mock.patch.object(
+            amazon, "fetch_page_raw", side_effect=[first_page, *errors]
+        ):
+            result = amazon.fetch_items("wishlist-id", "Wishlist")
+
+        self.assertFalse(result.complete)
+        self.assertIn("fetch_failed_after_retries", result.failure_reason or "")
+        self.assertEqual([item.item_id for item in result.items], ["a"])
 
     def test_normal_pagination_is_complete(self) -> None:
         """Amazon marks naturally exhausted pagination as complete."""

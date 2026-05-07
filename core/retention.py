@@ -1,4 +1,5 @@
 """Retention policies for generated diagnostic files."""
+
 import os
 import time
 from pathlib import Path
@@ -108,7 +109,9 @@ def prune_debug_dumps() -> None:
     if not debug_dir.exists():
         return
     if not debug_dir.is_dir():
-        logger.warning("DEBUG_DIR is not a directory; skipping dump pruning: %s", debug_dir)
+        logger.warning(
+            "DEBUG_DIR is not a directory; skipping dump pruning: %s", debug_dir
+        )
         return
 
     _prune_files(

@@ -1,4 +1,5 @@
 """Fetcher registry: maps platform names to their fetch_items callables."""
+
 from typing import Any
 
 from . import amazon

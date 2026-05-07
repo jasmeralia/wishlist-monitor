@@ -6,12 +6,19 @@ permissions:
 on:
   push:
     branches: [master]
-    tags: ["v*"]
   pull_request:
     branches: [master]
 
+concurrency:
+  group: docker-ghcr-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  lint:
+  lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -28,16 +35,51 @@ jobs:
       - name: Run lint checks
         run: make lint
 
-  build-and-push:
+      - name: Run unit tests
+        run: make test
+
+  tag-and-publish:
     runs-on: ubuntu-latest
-    needs: lint
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: lint-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Bump patch tag
+        id: tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch --tags --force origin
+            latest=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            major=$(echo "${latest}" | sed 's/v\([0-9]*\)\..*/\1/')
+            minor=$(echo "${latest}" | sed 's/v[0-9]*\.\([0-9]*\)\..*/\1/')
+            patch=$(echo "${latest}" | sed 's/v[0-9]*\.[0-9]*\.\([0-9]*\)/\1/')
+            new_tag="v${major}.${minor}.$((patch + 1))"
+            release_version="${new_tag#v}"
+            build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            echo "Attempt ${attempt}: tagging ${new_tag} (previous: ${latest})"
+            if git tag -a "${new_tag}" -m "Release ${new_tag}" && git push origin "${new_tag}"; then
+              echo "new_tag=${new_tag}" >> "$GITHUB_OUTPUT"
+              echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
+              echo "build_date=${build_date}" >> "$GITHUB_OUTPUT"
+              echo "Tagged ${new_tag} successfully"
+              break
+            fi
+            echo "Push failed (tag may already exist); retrying after refetch"
+            git tag -d "${new_tag}" 2>/dev/null || true
+            if [[ "${attempt}" -eq 3 ]]; then
+              echo "Failed to push a unique tag after 3 attempts"
+              exit 1
+            fi
+          done
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -48,7 +90,7 @@ jobs:
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -56,10 +98,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
             type=raw,value=latest
+            type=raw,value=${{ steps.tag.outputs.release_version }}
 
       - name: Build and push Docker image (amd64 + arm64)
         uses: docker/build-push-action@v7
@@ -68,3 +110,9 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            REPO_RELEASE_VERSION=${{ steps.tag.outputs.release_version }}
+            REPOSITORY_URL=${{ github.server_url }}/${{ github.repository }}
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ steps.tag.outputs.build_date }}

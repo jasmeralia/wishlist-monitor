@@ -1,4 +1,5 @@
 """Logging setup: configures the root logger once from environment variables."""
+
 import logging
 import os
 import sys
