@@ -102,5 +102,4 @@ def build_html_report(
         wishlist_url=wishlist_url,
         run_id=diagnostics.get("run_id"),
         cycle_id=diagnostics.get("cycle_id"),
-        log_file=diagnostics.get("log_file"),
     )
