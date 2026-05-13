@@ -86,13 +86,6 @@
       <div style="margin-bottom:8px;"><a href="{{ wishlist_url }}">View wishlist</a></div>
     {% endif %}
     <div>{{ summary_html|safe }}</div>
-    {% if run_id or cycle_id or log_file %}
-      <div style="margin-top:8px;margin-bottom:12px;font-size:12px;line-height:1.5;color:#5F6368 !important;">
-        {% if run_id %}<div><strong>Run ID:</strong> {{ run_id }}</div>{% endif %}
-        {% if cycle_id %}<div><strong>Cycle ID:</strong> {{ cycle_id }}</div>{% endif %}
-        {% if log_file %}<div><strong>Log file:</strong> {{ log_file }}</div>{% endif %}
-      </div>
-    {% endif %}
     {% if readded_diagnostics %}
       <div style="margin-top:8px;margin-bottom:12px;padding:8px;border:1px solid #F29900;border-radius:6px;background:#332600 !important;color:#FDE293 !important;font-size:12px;line-height:1.5;">
         <div><strong>Readded after removal:</strong> {{ readded_diagnostics|length }} item(s)</div>
@@ -161,7 +154,12 @@
       {% endfor %}
     {% endif %}
 
-    <div style="margin-top:20px;font-size:11px;color:#9AA0A6 !important;text-align:center;">
+    {% if run_id or cycle_id %}
+      <div style="margin-top:16px;font-size:10px;color:#9AA0A6 !important;text-align:center;">
+        {% if run_id %}Run ID: {{ run_id }}{% endif %}{% if run_id and cycle_id %} &middot; {% endif %}{% if cycle_id %}Cycle ID: {{ cycle_id }}{% endif %}
+      </div>
+    {% endif %}
+    <div style="margin-top:4px;font-size:11px;color:#9AA0A6 !important;text-align:center;">
       This email was sent by
       <a href="https://github.com/jasmeralia/wishlist_monitor">Wishlist Monitor</a>
       © 2025 by
