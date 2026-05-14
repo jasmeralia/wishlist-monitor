@@ -1,3 +1,3 @@
-# CLAUDE.md
+# Claude Instructions
 
-Project instructions now live in [AGENTS.md](AGENTS.md).
+Read `AGENTS.md` first and follow it as the authoritative project guidance.
