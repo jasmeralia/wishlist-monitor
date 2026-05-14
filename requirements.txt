@@ -6,3 +6,5 @@ types-pytz
 types-requests
 Jinja2
 types-Jinja2
+
+pydantic-settings>=2.0

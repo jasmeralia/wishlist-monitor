@@ -422,3 +422,22 @@ With fields for before/after prices and timestamps.
 ## License
 
 This project is licensed under the MIT License. See `LICENSE` for details.
+
+## Using a .env file
+
+Rather than embedding credentials in your `docker-compose.yml`, you can store them in a `.env` file and bind-mount it into the container:
+
+```bash
+cp .env.example .env
+# edit .env with your values
+```
+
+```yaml
+services:
+  app:
+    image: ghcr.io/jasmeralia/wishlist_monitor:latest
+    volumes:
+      - /path/to/your/.env:/app/.env:ro
+```
+
+The app loads `/app/.env` automatically on startup. Any value in `.env` can still be overridden by an explicit `environment:` entry in your Compose file.
