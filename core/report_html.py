@@ -14,6 +14,8 @@ EMAIL_THEME = os.getenv("EMAIL_THEME", "dark").strip().lower()
 if EMAIL_THEME not in ("light", "dark"):
     EMAIL_THEME = "dark"
 
+APP_VERSION = os.getenv("APP_VERSION", "").strip() or None
+
 
 def _cents_to_str(cents: int | None, currency: str = "USD") -> str:
     if cents is None or cents < 0:
@@ -102,4 +104,5 @@ def build_html_report(
         wishlist_url=wishlist_url,
         run_id=diagnostics.get("run_id"),
         cycle_id=diagnostics.get("cycle_id"),
+        app_version=APP_VERSION,
     )
