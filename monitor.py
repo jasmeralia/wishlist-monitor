@@ -1,24 +1,25 @@
 """Wishlist monitor entry point: runs once or as a polling daemon."""
 
+# ruff: noqa: E402  -- load_dotenv() must run before local imports that read env vars at import time
+
+import json
+import logging
+import os
+import random
+import time
+from typing import Any, Dict, List, Tuple
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-import logging
-import json
-import os
-import time
-import random
-from typing import Any, Dict, List, Tuple
-
-from core.logger import get_logger
-from core import storage
-from core import run_context
+from core import run_context, storage
 from core.diff import diff_items
+from core.emailer import get_global_recipients, send_email
+from core.logger import get_logger
 from core.models import FetchResult
-from core.retention import env_int, prune_diagnostics
 from core.report_html import build_html_report
-from core.emailer import send_email, get_global_recipients
+from core.retention import env_int, prune_diagnostics
 from fetchers import FETCHERS
 
 logger = get_logger(__name__)
