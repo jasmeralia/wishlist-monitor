@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# pylint: disable=wrong-import-position
 from core import run_context, storage
 from core.diff import diff_items
 from core.emailer import get_global_recipients, send_email
@@ -21,6 +22,8 @@ from core.models import FetchResult
 from core.report_html import build_html_report
 from core.retention import env_int, prune_diagnostics
 from fetchers import FETCHERS
+
+# pylint: enable=wrong-import-position
 
 logger = get_logger(__name__)
 
