@@ -1,6 +1,7 @@
 """Wishlist monitor entry point: runs once or as a polling daemon."""
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import logging
