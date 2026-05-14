@@ -22,7 +22,9 @@ COPY monitor.py ./
 # config.json and /data directory will be mounted from host
 VOLUME ["/data"]
 
+ARG REPO_RELEASE_VERSION
 ENV CONFIG_PATH=/data/config.json \
+    APP_VERSION=${REPO_RELEASE_VERSION} \
     DB_PATH=/data/wishlist_state.sqlite3 \
     LOG_FILE=/data/wishlist_monitor.log \
     MODE=daemon
