@@ -7,4 +7,4 @@ types-requests
 Jinja2
 types-Jinja2
 
-pydantic-settings>=2.0
+pydantic-settings>=2.14.1
