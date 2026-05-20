@@ -2,38 +2,20 @@
 
 import os
 import json
-import datetime
 import re
 import hashlib
+from pathlib import Path
 from typing import Any, List, Optional
 
 import requests
 from bs4 import BeautifulSoup, Tag
 from tenacity import retry, wait_exponential_jitter, stop_after_attempt, RetryError
 
-from core.models import Item
+from core.dumps import write_dump
+from core.models import FetchResult, Item
 from core.logger import get_logger
-from core import run_context
 
 logger = get_logger(__name__)
-
-
-def _dump_html(wishlist_name: str | None, html: str) -> str | None:
-    """Write HTML to a timestamped file; always writes for threshold analysis."""
-    try:
-        os.makedirs(DEBUG_DIR, exist_ok=True)
-        ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", wishlist_name or "unknown")
-        cycle_id = run_context.get_cycle_id()
-        cycle_suffix = f"_{cycle_id}" if cycle_id else ""
-        path = os.path.join(DEBUG_DIR, f"throne_{safe}_{ts}{cycle_suffix}.html")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(html)
-        logger.debug("Throne HTML dumped to %s", path)
-        return path
-    except Exception as exc:  # pylint: disable=broad-exception-caught
-        logger.debug("Failed to dump Throne HTML: %s", exc)
-        return None
 
 
 USER_AGENT = os.getenv(
@@ -42,7 +24,6 @@ USER_AGENT = os.getenv(
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 )
 PROXY_URL = os.getenv("THRONE_PROXY_URL", "").strip()
-DEBUG_DIR = os.getenv("DEBUG_DIR", "/data/debug_dumps")
 DEBUG_LOG_SAMPLES = os.getenv("THRONE_DEBUG_LOG_SAMPLES", "true").lower() == "true"
 
 SESSION = requests.Session()
@@ -342,27 +323,32 @@ def _extract_items_grid(html: str) -> Optional[List[Item]]:
     return list(uniq.values())
 
 
-def fetch_items(
-    identifier: str, wishlist_name: str | None = None
-) -> tuple[Optional[List[Item]], list[str]]:
-    """
-    Fetch items from a Throne wishlist (by username or URL), returning a list of Items
-    or None on failure.
-    """
+def fetch_items(identifier: str, wishlist_name: str | None = None) -> FetchResult:
+    """Fetch items from a Throne wishlist (by username or URL)."""
     url = _normalize_target(identifier)
     logger.info("Checking Throne wishlist '%s' at %s", wishlist_name or identifier, url)
 
     try:
         html = _fetch(url)
-        dump_path = _dump_html(wishlist_name, html)
+        dump_path = write_dump("throne", wishlist_name, html)
     except RetryError as e:
         logger.error("Throne fetch failed for %s after retries: %s", url, e)
-        return None, []
+        return FetchResult(
+            items=[],
+            dump_paths=[],
+            complete=False,
+            failure_reason=f"fetch_failed_after_retries: {e}",
+        )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Throne fetch threw unexpected exception for %s: %s", url, e)
-        return None, []
+        return FetchResult(
+            items=[],
+            dump_paths=[],
+            complete=False,
+            failure_reason=f"unexpected_error: {e}",
+        )
 
-    dump_paths = [dump_path] if dump_path else []
+    dump_paths: list[Path | str] = [dump_path] if dump_path else []
 
     items = _extract_items_next_data(html)
     if not items:
@@ -374,10 +360,15 @@ def fetch_items(
 
     if not items:
         logger.warning("Throne parsed 0 items for %s.", url)
-        return None, dump_paths
+        return FetchResult(
+            items=[],
+            dump_paths=dump_paths,
+            complete=False,
+            failure_reason="no_items_parsed",
+        )
 
     if DEBUG_LOG_SAMPLES:
         logger.debug("Throne sample items for %s: %s", url, items[:3])
 
     logger.info("Throne: found %d items for %s", len(items), url)
-    return items, dump_paths
+    return FetchResult(items=items, dump_paths=dump_paths, complete=True)

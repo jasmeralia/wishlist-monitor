@@ -206,15 +206,14 @@ def test_absolute_removal_threshold_preserves_rows(monitor_state: None) -> None:
 @pytest.fixture()
 def amazon_settings(tmp_path: Path) -> Iterator[None]:
     """Configure Amazon fetcher globals for fast isolated tests."""
-    old_debug_dir = amazon.DEBUG_DIR
     old_min_spacing = amazon.AMAZON_MIN_SPACING
     old_page_sleep = amazon.PAGE_SLEEP
     old_captcha_sleep = amazon.CAPTCHA_SLEEP
     old_fail_sleep = amazon.FAIL_SLEEP
     old_retries = amazon.AMAZON_MAX_PAGE_RETRIES
     old_last_fetch = amazon._LAST_AMAZON_FETCH_TS
-    amazon.DEBUG_DIR = tmp_path
-    amazon.DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+    old_debug_dir_env = os.environ.get("DEBUG_DIR")
+    os.environ["DEBUG_DIR"] = str(tmp_path / "debug_dumps")
     amazon.AMAZON_MIN_SPACING = 0
     amazon.PAGE_SLEEP = 0
     amazon.CAPTCHA_SLEEP = 0
@@ -224,7 +223,10 @@ def amazon_settings(tmp_path: Path) -> Iterator[None]:
     try:
         yield
     finally:
-        amazon.DEBUG_DIR = old_debug_dir
+        if old_debug_dir_env is None:
+            os.environ.pop("DEBUG_DIR", None)
+        else:
+            os.environ["DEBUG_DIR"] = old_debug_dir_env
         amazon.AMAZON_MIN_SPACING = old_min_spacing
         amazon.PAGE_SLEEP = old_page_sleep
         amazon.CAPTCHA_SLEEP = old_captcha_sleep

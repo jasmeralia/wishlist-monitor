@@ -1,6 +1,5 @@
 """Amazon wishlist fetcher using the mobile HTML layout."""
 
-import datetime
 import math
 import os
 import random
@@ -15,14 +14,13 @@ import requests
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
+from core.dumps import write_dump
 from core.logger import get_logger
 from core.models import FetchResult, Item
-from core import run_context
 
 logger = get_logger(__name__)
 
 BASE_URL = "https://www.amazon.com"
-DEBUG_DIR = Path(os.getenv("DEBUG_DIR", "/data/debug_dumps"))
 
 # Global Amazon fetch spacing (seconds between any two wishlist page fetches)
 AMAZON_MIN_SPACING = int(os.getenv("AMAZON_MIN_SPACING", "45"))
@@ -35,34 +33,9 @@ CAPTCHA_SLEEP = int(os.getenv("CAPTCHA_SLEEP", "900"))
 FAIL_SLEEP = int(os.getenv("FAIL_SLEEP", "30"))
 PAGE_SLEEP = int(os.getenv("PAGE_SLEEP", "5"))
 
-DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-
 
 class AmazonError(Exception):
     """Generic Amazon fetch error."""
-
-
-def _sanitize(name: str) -> str:
-    """Normalize arbitrary wishlist names/IDs to be filesystem-safe."""
-    return "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in name)
-
-
-def _dump_html(wishlist_name: str | None, page_index: int, html: str) -> Path | None:
-    """Write HTML to a timestamped file; always writes for threshold analysis."""
-    timestamp = datetime.datetime.now(tz=datetime.timezone.utc).strftime(
-        "%Y%m%d_%H%M%S"
-    )
-    safe = _sanitize(wishlist_name or "unknown")
-    cycle_id = run_context.get_cycle_id()
-    cycle_suffix = f"_{cycle_id}" if cycle_id else ""
-    path = DEBUG_DIR / f"amazon_{safe}_page{page_index}_{timestamp}{cycle_suffix}.html"
-    try:
-        path.write_text(html, encoding="utf-8")
-        logger.debug("Dumped Amazon HTML to %s", path)
-        return path
-    except Exception as exc:  # pylint: disable=broad-exception-caught  # pragma: no cover
-        logger.debug("Failed to dump Amazon HTML to %s: %s", path, exc)
-        return None
 
 
 def normalize_wishlist_url(url: str) -> str:
@@ -393,7 +366,7 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> FetchResul
                 failure_reason=f"no_html page={page} url={current_url}",
             )
 
-        p = _dump_html(wishlist_name, page, html)
+        p = write_dump("amazon", wishlist_name, html, page_index=page)
         if p:
             dump_paths.append(p)
 
