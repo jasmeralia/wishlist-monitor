@@ -121,7 +121,7 @@ Ruff uses its defaults (line length 88).
 
 - Never push commits directly to `master`. Always open a pull request from a feature/fix branch.
 - Use squash merge strategy when merging pull requests.
-- After merging any pull request, monitor the GitHub Actions workflow runs to confirm CI passes.
+- After merging any pull request, monitor the GitHub Actions workflow runs to confirm both CI (lint-and-test) and the Docker image release (Build and Publish Docker image to GHCR) pass. Do not report the task complete until both succeed.
 
 ## Docker
 
