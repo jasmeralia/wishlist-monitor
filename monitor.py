@@ -3,7 +3,6 @@
 # ruff: noqa: E402  -- load_dotenv() must run before local imports that read env vars at import time
 
 import json
-import logging
 import os
 import random
 import time
@@ -283,14 +282,6 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
                 for item in readded_diagnostics
             ],
         )
-
-    # Threshold not met — clean up dumps unless DEBUG logging is active
-    if not logger.isEnabledFor(logging.DEBUG):
-        for p in dump_paths:
-            try:
-                os.remove(p)
-            except Exception:  # pylint: disable=broad-exception-caught
-                pass
 
     storage.save_items_and_events(
         platform,

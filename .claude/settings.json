@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": \"AGENTS.md reminder: run make lint-fix && make lint && make test before committing.\"}}'",
+            "statusMessage": "Checking AGENTS.md requirements..."
+          }
+        ]
+      }
+    ]
+  }
+}
