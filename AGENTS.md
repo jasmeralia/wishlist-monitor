@@ -122,6 +122,27 @@ Ruff uses its defaults (line length 88).
 - Never push commits directly to `master`. Always open a pull request from a feature/fix branch.
 - Use squash merge strategy when merging pull requests.
 - After merging any pull request, monitor the GitHub Actions workflow runs to confirm both CI (lint-and-test) and the Docker image release (Build and Publish Docker image to GHCR) pass. Do not report the task complete until both succeed.
+- After the Docker release publishes a new tag, deploy it to the TrueNAS host as a mandatory final step (see Deployment below). The PR is not considered complete until the new image is running on the production stack.
+
+## Deployment
+
+Production runs on the TrueNAS SCALE host `truenas.windsofstorm.net` as the Compose-YAML app `wishlist-monitor`. After every merged PR, once the `Build and Publish Docker image to GHCR` workflow succeeds and tags a new release (e.g. `v1.2.17`), deploy it using the `truenas-app` wrapper:
+
+1. Fetch tags locally to discover the new version:
+   ```bash
+   git fetch --tags origin && git tag --sort=-creatordate | head -1
+   ```
+2. Run the deploy via SSH (the script lives on the host at `/mnt/myzmirror/myzdset/morgan/bin/truenas-app` and requires `sudo` for `midclt`):
+   ```bash
+   ssh truenas.windsofstorm.net \
+     "sudo /mnt/myzmirror/myzdset/morgan/bin/truenas-app classify wishlist-monitor && \
+      sudo /mnt/myzmirror/myzdset/morgan/bin/truenas-app update-image wishlist-monitor wishlist-monitor ghcr.io/jasmeralia/wishlist_monitor:<NEW_TAG>"
+   ```
+   - `classify` must report `COMPOSE YAML — safe to update` before proceeding.
+   - `update-image <app> <service> <image>` performs the rolling update; the service name is also `wishlist-monitor`.
+3. Confirm the post-update JSON reports `"state": "RUNNING"` and the new tag in `images`. Only then mark the task complete.
+
+Refer to `~/git/truenas/AGENTS.md` for general TrueNAS stack-management rules (classification, safety, raw `midclt` usage).
 
 ## Docker
 
