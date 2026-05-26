@@ -38,6 +38,14 @@ def _normalize_target(target: str) -> str:
     return f"https://throne.com/{target}"
 
 
+def _extract_slug(identifier: str) -> str:
+    """Extract the Throne username slug from an identifier (username or URL)."""
+    s = identifier.strip()
+    s = re.sub(r"^https?://(?:www\.)?throne\.com/", "", s)
+    s = s.strip("/")
+    return s.split("/", 1)[0]
+
+
 @retry(wait=wait_exponential_jitter(initial=1, max=30), stop=stop_after_attempt(5))
 def _fetch(url: str) -> str:
     r = SESSION.get(url, timeout=30)
@@ -45,7 +53,7 @@ def _fetch(url: str) -> str:
     return r.text
 
 
-def _extract_items_next_data(html: str) -> Optional[List[Item]]:
+def _extract_items_next_data(html: str, slug: str = "") -> Optional[List[Item]]:
     """Extract items from the __NEXT_DATA__ JSON script tag."""
     soup = BeautifulSoup(html, "html.parser")
     script = soup.find("script", id="__NEXT_DATA__")
@@ -98,6 +106,9 @@ def _extract_items_next_data(html: str) -> Optional[List[Item]]:
                 break
         currency = it.get("currency") or it.get("currencyCode") or "USD"
         url = it.get("url") or it.get("productUrl") or it.get("url_path") or ""
+        uuid_id = it.get("id") or it.get("itemId") or it.get("uuid")
+        if not url and slug and uuid_id:
+            url = f"https://throne.com/{slug}/item/{uuid_id}"
 
         # Prefer explicit image fields from Throne JSON; fall back to extras.
         image_val = it.get("imgLink") or it.get("image") or it.get("imageUrl")
@@ -350,7 +361,8 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> FetchResul
 
     dump_paths: list[Path | str] = [dump_path] if dump_path else []
 
-    items = _extract_items_next_data(html)
+    slug = _extract_slug(identifier)
+    items = _extract_items_next_data(html, slug)
     if not items:
         logger.debug("Throne NEXT_DATA extraction failed or empty; trying JSON-LD")
         items = _extract_items_jsonld(html)
