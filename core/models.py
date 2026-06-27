@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 @dataclass
-class Item:
+class Item:  # pylint: disable=too-many-instance-attributes
     """
     Normalized representation of a wishlist item across all platforms.
     Prices are stored in cents for consistency.
@@ -18,6 +18,7 @@ class Item:
     product_url: str = ""
     image_url: str = ""
     available: bool = True
+    binding: str = ""
 
 
 @dataclass

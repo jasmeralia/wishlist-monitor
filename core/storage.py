@@ -59,6 +59,7 @@ def ensure_db() -> None:
                 available INTEGER,
                 first_seen TEXT,
                 last_seen TEXT,
+                binding TEXT NOT NULL DEFAULT '',
                 PRIMARY KEY (platform, wishlist_id, item_id)
             )
         """
@@ -82,6 +83,7 @@ def ensure_db() -> None:
         )
         _ensure_column(cur, "events", "run_id", "TEXT")
         _ensure_column(cur, "events", "cycle_id", "TEXT")
+        _ensure_column(cur, "items", "binding", "TEXT NOT NULL DEFAULT ''")
         con.commit()
 
 
@@ -100,7 +102,7 @@ def get_previous_items(platform: str, wishlist_id: str) -> Dict[str, Item]:
         cur = con.cursor()
         cur.execute(
             """
-            SELECT item_id, name, price_cents, currency, product_url, image_url, available
+            SELECT item_id, name, price_cents, currency, product_url, image_url, available, binding
             FROM items
             WHERE platform=? AND wishlist_id=?
         """,
@@ -110,7 +112,16 @@ def get_previous_items(platform: str, wishlist_id: str) -> Dict[str, Item]:
 
     out: Dict[str, Item] = {}
     for row in rows:
-        item_id, name, price_cents, currency, product_url, image_url, available = row
+        (
+            item_id,
+            name,
+            price_cents,
+            currency,
+            product_url,
+            image_url,
+            available,
+            binding,
+        ) = row
         out[item_id] = Item(
             item_id=item_id,
             name=name,
@@ -119,6 +130,7 @@ def get_previous_items(platform: str, wishlist_id: str) -> Dict[str, Item]:
             product_url=product_url or "",
             image_url=image_url or "",
             available=bool(available),
+            binding=binding or "",
         )
     return out
 
@@ -203,9 +215,9 @@ def save_items_and_events(
                 """
                 INSERT INTO items (
                     platform, wishlist_id, item_id, name, price_cents, currency,
-                    product_url, image_url, available, first_seen, last_seen
+                    product_url, image_url, available, first_seen, last_seen, binding
                 )
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(platform, wishlist_id, item_id) DO UPDATE SET
                     name=excluded.name,
                     price_cents=excluded.price_cents,
@@ -213,7 +225,8 @@ def save_items_and_events(
                     product_url=excluded.product_url,
                     image_url=excluded.image_url,
                     available=excluded.available,
-                    last_seen=excluded.last_seen
+                    last_seen=excluded.last_seen,
+                    binding=excluded.binding
             """,
                 (
                     platform,
@@ -227,6 +240,7 @@ def save_items_and_events(
                     1 if it.available else 0,
                     ts,
                     ts,
+                    it.binding,
                 ),
             )
 

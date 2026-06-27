@@ -46,6 +46,7 @@ def build_html_report(
             "price_str": _cents_to_str(it.price_cents, it.currency),
             "image_url": it.image_url,
             "product_url": it.product_url,
+            "binding": it.binding,
         }
         for it in added
     ]
@@ -56,6 +57,7 @@ def build_html_report(
             "price_str": _cents_to_str(it.price_cents, it.currency),
             "image_url": it.image_url,
             "product_url": it.product_url,
+            "binding": it.binding,
         }
         for it in removed
     ]
@@ -78,6 +80,7 @@ def build_html_report(
                     "name": it.name,
                     "image_url": it.image_url,
                     "product_url": it.product_url,
+                    "binding": it.binding,
                 },
                 "before_str": before_str,
                 "after_str": after_str,
