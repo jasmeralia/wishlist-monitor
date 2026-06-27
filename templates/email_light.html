@@ -58,6 +58,7 @@
       {% for item in added %}
         <div class="card">
           <div><strong>{{ item.name }}</strong></div>
+          {% if item.binding %}<div style="font-size:11px;color:#757575 !important;margin-top:2px;">{{ item.binding }}</div>{% endif %}
           <div>{{ item.price_str }}</div>
           {% if item.image_url %}
             <img src="{{ item.image_url }}" width="64" height="64" alt="" style="border-radius:6px;object-fit:cover;" />
@@ -74,6 +75,7 @@
         {% for item in removed %}
           <div class="card">
             <div><strong>{{ item.name }}</strong></div>
+            {% if item.binding %}<div style="font-size:11px;color:#757575 !important;margin-top:2px;">{{ item.binding }}</div>{% endif %}
             <div style="color:#c62828 !important;">Removed{% if item.price_str %} · Last seen at {{ item.price_str }}{% endif %}</div>
             {% if item.image_url %}
               <img src="{{ item.image_url }}" width="64" height="64" alt="" style="border-radius:6px;object-fit:cover;" />
@@ -90,6 +92,7 @@
       {% for c in price_changes %}
         <div class="card">
           <div><strong>{{ c.item.name }}</strong></div>
+          {% if c.item.binding %}<div style="font-size:11px;color:#757575 !important;margin-top:2px;">{{ c.item.binding }}</div>{% endif %}
           <div>
             {{ c.before_str }} → {{ c.after_str }}
             {% if c.pct_str %}

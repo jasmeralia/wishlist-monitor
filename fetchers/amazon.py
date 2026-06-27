@@ -145,6 +145,12 @@ def parse_item_li(li: Tag) -> Item:
     )
     name = _text_or_empty(title_el) or item_id
 
+    # Binding / format (e.g. Hardcover, Paperback, Kindle Edition)
+    format_el = li.select_one(
+        '[data-cy="price-recipe"] span.puis-medium-weight-text.a-text-bold'
+    )
+    binding = _text_or_empty(format_el) if format_el is not None else ""
+
     # Price: prefer data-price on container when present
     price_cents = -1
     currency = "USD"
@@ -186,12 +192,13 @@ def parse_item_li(li: Tag) -> Item:
     available = price_cents >= 0
 
     logger.debug(
-        "Parsed item: id=%s, name=%s, price_cents=%d, url=%s, image=%s",
+        "Parsed item: id=%s, name=%s, price_cents=%d, url=%s, image=%s, binding=%s",
         item_id,
         name,
         price_cents,
         product_url,
         image_url,
+        binding,
     )
 
     return Item(
@@ -202,6 +209,7 @@ def parse_item_li(li: Tag) -> Item:
         product_url=product_url,
         image_url=image_url,
         available=available,
+        binding=binding,
     )
 
 
