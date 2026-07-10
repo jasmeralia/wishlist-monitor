@@ -1,32 +1,36 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/Los_Angeles"
-    auto-merge: enable
-    groups:
-      python-dependencies:
-        patterns:
-          - "*"
-
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:30"
-      timezone: "America/Los_Angeles"
-    auto-merge: enable
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "10:00"
-      timezone: "America/Los_Angeles"
-    auto-merge: enable
+- package-ecosystem: pip
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+    time: 09:00
+    timezone: America/Los_Angeles
+  auto-merge: enable
+  groups:
+    python-dependencies:
+      patterns:
+      - '*'
+  reviewers:
+  - jasmeralia
+- package-ecosystem: docker
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+    time: 09:30
+    timezone: America/Los_Angeles
+  auto-merge: enable
+  reviewers:
+  - jasmeralia
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: weekly
+    day: monday
+    time: '10:00'
+    timezone: America/Los_Angeles
+  auto-merge: enable
+  reviewers:
+  - jasmeralia
