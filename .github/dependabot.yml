@@ -12,8 +12,6 @@ updates:
     python-dependencies:
       patterns:
       - '*'
-  reviewers:
-  - jasmeralia
 - package-ecosystem: docker
   directory: /
   schedule:
@@ -22,8 +20,6 @@ updates:
     time: 09:30
     timezone: America/Los_Angeles
   auto-merge: enable
-  reviewers:
-  - jasmeralia
 - package-ecosystem: github-actions
   directory: /
   schedule:
@@ -32,5 +28,3 @@ updates:
     time: '10:00'
     timezone: America/Los_Angeles
   auto-merge: enable
-  reviewers:
-  - jasmeralia
