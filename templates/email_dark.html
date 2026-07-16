@@ -109,7 +109,7 @@
           {% if item.binding %}<div style="font-size:11px;color:#9AA0A6 !important;margin-top:2px;">{{ item.binding }}</div>{% endif %}
           <div>{{ item.price_str }}</div>
           {% if item.image_url %}
-            <img src="{{ item.image_url }}" width="64" height="64" alt="" style="border-radius:6px;object-fit:cover;" />
+            <img src="{{ item.image_url }}" width="128" height="128" alt="" style="border-radius:6px;object-fit:cover;" />
           {% endif %}
           {% if item.product_url %}
             <div><a href="{{ item.product_url }}">View item</a></div>
@@ -126,7 +126,7 @@
             {% if item.binding %}<div style="font-size:11px;color:#9AA0A6 !important;margin-top:2px;">{{ item.binding }}</div>{% endif %}
             <div class="removed">Removed{% if item.price_str %} · Last seen at {{ item.price_str }}{% endif %}</div>
             {% if item.image_url %}
-              <img src="{{ item.image_url }}" width="64" height="64" alt="" style="border-radius:6px;object-fit:cover;" />
+              <img src="{{ item.image_url }}" width="128" height="128" alt="" style="border-radius:6px;object-fit:cover;" />
             {% endif %}
             {% if item.product_url %}
               <div><a href="{{ item.product_url }}">View item</a></div>
@@ -148,7 +148,7 @@
             {% endif %}
           </div>
           {% if c.item.image_url %}
-            <img src="{{ c.item.image_url }}" width="64" height="64" alt="" style="border-radius:6px;object-fit:cover;" />
+            <img src="{{ c.item.image_url }}" width="128" height="128" alt="" style="border-radius:6px;object-fit:cover;" />
           {% endif %}
           {% if c.item.product_url %}
             <div><a href="{{ c.item.product_url }}">View item</a></div>
