@@ -6,11 +6,11 @@ PYLINT := $(if $(wildcard $(VENV)/bin/pylint),$(VENV)/bin/pylint,pylint)
 SRC := monitor.py core fetchers
 TESTS := tests
 
-.PHONY: lint lint-fix ruff ruff-format pylint mypy test
+.PHONY: lint lintfix ruff ruff-format pylint mypy test
 
 lint: ruff-format ruff pylint mypy
 
-lint-fix:
+lintfix:
 	$(RUFF) check --fix $(SRC) $(TESTS)
 	$(RUFF) format $(SRC) $(TESTS)
 
