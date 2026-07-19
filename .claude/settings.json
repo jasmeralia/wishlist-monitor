@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": \"AGENTS.md reminder: run make lint-fix && make lint && make test before committing.\"}}'",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": \"AGENTS.md reminder: run make lintfix && make lint && make test before committing.\"}}'",
             "statusMessage": "Checking AGENTS.md requirements..."
           }
         ]

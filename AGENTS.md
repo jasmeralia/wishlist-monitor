@@ -1,7 +1,7 @@
 # AGENTS.md — Wishlist Monitor
 
-> **After any change, run `make lint-fix && make lint && make test` before committing.**
-> `make lint-fix` auto-fixes ruff issues, `make lint` confirms formatting/lint/type
+> **After any change, run `make lintfix && make lint && make test` before committing.**
+> `make lintfix` auto-fixes ruff issues, `make lint` confirms formatting/lint/type
 > checks are clean, and `make test` runs the pytest suite.
 
 ## Project Overview
@@ -44,7 +44,7 @@ templates/
 | mypy | type checking | `make mypy` |
 | pytest | unit tests | `make test` |
 | all lint | format + ruff + pylint + mypy | `make lint` |
-| auto-fix | ruff --fix + format | `make lint-fix` |
+| auto-fix | ruff --fix + format | `make lintfix` |
 
 Configuration lives in `pyproject.toml` (`[tool.mypy]`, `[tool.pylint.*]`).
 Ruff uses its defaults (line length 88).
@@ -60,7 +60,7 @@ Ruff uses its defaults (line length 88).
   `# pylint: disable=global-statement` when mutating it.
 - **Imports**: stdlib before third-party before local; enforced by ruff.
 - **Logging**: use `get_logger(__name__)` from `core.logger`; never `print()`.
-- **Verification**: after edits, run `make lint-fix && make lint && make test`.
+- **Verification**: after edits, run `make lintfix && make lint && make test`.
 - **Formatting**: ruff handles formatting; `make lint` includes
   `ruff format --check`.
 - **Indentation preference**: use tabs over spaces for indentation in newly authored
@@ -115,7 +115,7 @@ Ruff uses its defaults (line length 88).
    returning `tuple[list[Item], list[str]]`.
 2. Register it in `fetchers/__init__.py` under `FETCHERS`.
 3. Add a `_wishlist_url()` branch in `monitor.py` if applicable.
-4. Ensure `make lint-fix && make lint && make test` passes before committing.
+4. Ensure `make lintfix && make lint && make test` passes before committing.
 
 ## Git Workflow
 
