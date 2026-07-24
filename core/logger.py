@@ -62,7 +62,7 @@ def setup_logging() -> None:
                 fh.setFormatter(formatter)
                 fh.addFilter(run_filter)
                 root.addHandler(fh)
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:  # pylint: disable=broad-exception-caught  # noqa: BLE001
                 root.warning("Failed to initialize file logging: %s", e)
 
     _CONFIGURED = True

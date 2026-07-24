@@ -6,9 +6,9 @@ import tempfile
 _IMPORT_TMP = tempfile.TemporaryDirectory()
 os.environ["LOG_TO_FILE"] = "false"
 
-from bs4 import BeautifulSoup  # noqa: E402
+from bs4 import BeautifulSoup
 
-from fetchers.amazon import parse_item_li  # noqa: E402
+from fetchers.amazon import parse_item_li
 
 
 def _li(inner_html: str, item_id: str = "test-id") -> BeautifulSoup:

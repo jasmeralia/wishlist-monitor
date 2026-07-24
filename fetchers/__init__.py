@@ -2,8 +2,7 @@
 
 from typing import Any
 
-from . import amazon
-from . import throne
+from . import amazon, throne
 
 FETCHERS: dict[str, Any] = {
     "amazon": amazon.fetch_items,

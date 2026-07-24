@@ -1,5 +1,5 @@
 -r requirements.txt
-ruff
+ruff==0.16.0
 mypy
 pylint
 pytest

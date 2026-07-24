@@ -11,7 +11,7 @@ _IMPORT_TMP = tempfile.TemporaryDirectory()
 os.environ["DEBUG_DIR"] = str(Path(_IMPORT_TMP.name) / "debug_dumps")
 os.environ["LOG_TO_FILE"] = "false"
 
-import monitor  # noqa: E402
+import monitor
 
 
 def test_load_config_accepts_valid_config(tmp_path: Path) -> None:

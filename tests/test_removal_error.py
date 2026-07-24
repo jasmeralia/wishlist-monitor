@@ -13,10 +13,10 @@ _IMPORT_TMP = tempfile.TemporaryDirectory()
 os.environ["DEBUG_DIR"] = str(Path(_IMPORT_TMP.name) / "debug_dumps")
 os.environ["LOG_TO_FILE"] = "false"
 
-import monitor  # noqa: E402
-from core import storage  # noqa: E402
-from core.models import FetchResult, Item  # noqa: E402
-from fetchers import amazon  # noqa: E402
+import monitor
+from core import storage
+from core.models import FetchResult, Item
+from fetchers import amazon
 
 
 def _item(item_id: str) -> Item:

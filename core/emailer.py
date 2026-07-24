@@ -2,8 +2,8 @@
 
 import os
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from .logger import get_logger
 
@@ -75,5 +75,5 @@ def send_email(
     finally:
         try:
             server.quit()
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001, S110
             pass

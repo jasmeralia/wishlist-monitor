@@ -1,12 +1,10 @@
 """Wishlist monitor entry point: runs once or as a polling daemon."""
 
-# ruff: noqa: E402  -- load_dotenv() must run before local imports that read env vars at import time
-
 import json
 import os
 import random
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -41,7 +39,7 @@ def _wishlist_url(platform: str, identifier: str) -> str | None:
     platform = platform.strip().lower()
     if not identifier:
         return None
-    if identifier.startswith("http://") or identifier.startswith("https://"):
+    if identifier.startswith(("http://", "https://")):
         return identifier
     if platform == "amazon":
         return f"https://www.amazon.com/hz/wishlist/ls/{identifier}"
@@ -59,14 +57,14 @@ def jitter_sleep_minutes(minutes: int) -> None:
     time.sleep(total * 60)
 
 
-def load_config(path: str = CONFIG_PATH) -> Dict[str, Any]:
+def load_config(path: str = CONFIG_PATH) -> dict[str, Any]:
     """Load and validate the JSON config file, raising SystemExit on error."""
     if not os.path.exists(path):
         logger.error("Config file not found at %s", path)
         raise SystemExit(1)
     try:
         with open(path, "r", encoding="utf-8") as f:
-            cfg: Dict[str, Any] = json.load(f)
+            cfg: dict[str, Any] = json.load(f)
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Failed to load config.json at %s: %s", path, e)
         raise SystemExit(1) from e
@@ -82,7 +80,7 @@ def load_config(path: str = CONFIG_PATH) -> Dict[str, Any]:
     return cfg
 
 
-def get_recipients_for_wishlist(wl: Dict[str, Any]) -> List[str]:
+def get_recipients_for_wishlist(wl: dict[str, Any]) -> list[str]:
     """Return per-wishlist recipients, falling back to global recipients."""
     wl_recipients = wl.get("recipients")
     if isinstance(wl_recipients, list):
@@ -106,7 +104,7 @@ def normalize_fetch_result(result: Any) -> FetchResult:
     )
 
 
-def process_wishlist(wl: Dict[str, Any]) -> None:
+def process_wishlist(wl: dict[str, Any]) -> None:
     """Fetch, diff, and notify for a single wishlist config entry."""
     platform = wl.get("platform", "").strip().lower()
     name = wl.get("name", "").strip()
@@ -325,7 +323,7 @@ def process_wishlist(wl: Dict[str, Any]) -> None:
         send_email(subject, html_body, None, recipients)
 
 
-def _wishlist_debug_id(wl: Dict[str, Any]) -> str:
+def _wishlist_debug_id(wl: dict[str, Any]) -> str:
     platform = wl.get("platform", "").strip().lower()
     name = wl.get("name", "").strip()
     if not platform and not name:
@@ -333,10 +331,10 @@ def _wishlist_debug_id(wl: Dict[str, Any]) -> str:
     return f"{platform}:{name}"
 
 
-def _debug_log_wishlist_order(phase: str, wishlists: List[Dict[str, Any]]) -> None:
+def _debug_log_wishlist_order(phase: str, wishlists: list[dict[str, Any]]) -> None:
     try:
         order = [_wishlist_debug_id(wl) for wl in wishlists if isinstance(wl, dict)]
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
         order = ["<error>"]
     logger.debug("%s wishlist order: %s", phase, order)
 
@@ -362,8 +360,8 @@ def run_once() -> int:
     for wl in wishlists:
         try:
             process_wishlist(wl)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception("Unhandled error in run_once: %s", e)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Unhandled error in run_once")
 
     return 0
 
@@ -377,7 +375,7 @@ def run_daemon() -> None:
         run_context.get_log_file_path(),
     )
     storage.ensure_db()
-    last_run_map: Dict[Tuple[str, str], float] = {}
+    last_run_map: dict[tuple[str, str], float] = {}
     last_prune_ts = 0.0
 
     while True:
@@ -429,7 +427,7 @@ def run_daemon() -> None:
                     poll_minutes = (
                         int(poll_val) if poll_val is not None else POLL_MINUTES
                     )
-                except Exception:  # pylint: disable=broad-exception-caught
+                except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
                     poll_minutes = POLL_MINUTES
 
                 poll_minutes = max(1, poll_minutes)
@@ -456,13 +454,13 @@ def run_daemon() -> None:
 
                 try:
                     process_wishlist(wl)
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    logger.exception("Error processing %s:%s: %s", platform, name, e)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    logger.exception("Error processing %s:%s", platform, name)
                 finally:
                     last_run_map[key] = time.time()
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception("Unhandled error in daemon loop: %s", e)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Unhandled error in daemon loop")
 
         jitter_sleep_minutes(POLL_MINUTES)
 
@@ -473,5 +471,5 @@ if __name__ == "__main__":
             raise SystemExit(run_once())
         run_daemon()
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.exception("Fatal monitor error: %s", e)
+        logger.exception("Fatal monitor error")
         raise SystemExit(2) from e

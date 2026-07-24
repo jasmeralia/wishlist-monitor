@@ -34,6 +34,6 @@ def write_dump(
         path.write_text(html, encoding="utf-8")
         logger.debug("Dumped %s HTML to %s", platform, path)
         return path
-    except Exception as exc:  # pylint: disable=broad-exception-caught
+    except Exception as exc:  # pylint: disable=broad-exception-caught  # noqa: BLE001
         logger.debug("Failed to dump %s HTML: %s", platform, exc)
         return None

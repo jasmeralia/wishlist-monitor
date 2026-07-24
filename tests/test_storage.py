@@ -11,8 +11,8 @@ import pytest
 _IMPORT_TMP = tempfile.TemporaryDirectory()
 os.environ["LOG_TO_FILE"] = "false"
 
-from core import storage  # noqa: E402
-from core.models import Item  # noqa: E402
+from core import storage
+from core.models import Item
 
 
 def _item(item_id: str, price_cents: int = 100) -> Item:

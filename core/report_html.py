@@ -2,8 +2,9 @@
 
 import os
 from pathlib import Path
-from typing import List, Tuple
+
 from jinja2 import Environment, FileSystemLoader
+
 from core.models import Item
 from core.storage import ReaddedItemDiagnostic
 
@@ -27,14 +28,14 @@ def _cents_to_str(cents: int | None, currency: str = "USD") -> str:
 def build_html_report(
     platform: str,
     wishlist_name: str,
-    added: List[Item],
-    removed: List[Item],
-    price_changes: List[Tuple[Item, int, int]],
+    added: list[Item],
+    removed: list[Item],
+    price_changes: list[tuple[Item, int, int]],
     previous_count: int,
     new_count: int,
     wishlist_url: str | None = None,
     diagnostics: dict[str, str | None] | None = None,
-    readded_diagnostics: List[ReaddedItemDiagnostic] | None = None,
+    readded_diagnostics: list[ReaddedItemDiagnostic] | None = None,
 ) -> str:
     """Render the HTML email report for a single wishlist diff."""
     template = env.get_template(f"email_{EMAIL_THEME}.html")

@@ -5,9 +5,8 @@ import os
 import random
 import re
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
-
 from urllib.parse import urlparse
 
 import requests
@@ -78,9 +77,7 @@ def looks_like_captcha_or_block(html: str) -> bool:
         return True
     if "to discuss automated access to amazon data" in lower:
         return True
-    if "type the characters you see in this image" in lower:
-        return True
-    return False
+    return "type the characters you see in this image" in lower
 
 
 def fetch_page_raw(session: requests.Session, url: str, headers: dict[str, str]) -> str:
@@ -163,7 +160,7 @@ def parse_item_li(li: Tag) -> Item:
         try:
             price_value = float(raw_price_str)
             if math.isfinite(price_value):
-                price_cents = int(round(price_value * 100))
+                price_cents = round(price_value * 100)
             else:
                 logger.debug("Non-finite price %r for item %s", raw_price_str, item_id)
         except ValueError:
@@ -224,7 +221,7 @@ def extract_items_from_soup(soup: BeautifulSoup) -> list[Item]:
     for li in containers:
         try:
             items.append(parse_item_li(li))
-        except Exception as exc:  # pylint: disable=broad-exception-caught  # pragma: no cover
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # noqa: BLE001  # pragma: no cover
             logger.debug("Failed to parse an item block: %s", exc)
     return items
 
@@ -259,7 +256,7 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> FetchResul
     """
     session = requests.Session()
 
-    if identifier.startswith("http://") or identifier.startswith("https://"):
+    if identifier.startswith(("http://", "https://")):
         first_url = normalize_wishlist_url(identifier)
     else:
         # Assume bare wishlist ID
@@ -395,7 +392,7 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> FetchResul
         for li in li_nodes:
             try:
                 item = parse_item_li(li)
-            except Exception as exc:  # pylint: disable=broad-exception-caught
+            except Exception as exc:  # pylint: disable=broad-exception-caught  # noqa: BLE001
                 logger.debug(
                     "Failed to parse item on wishlist '%s' page %d: %s",
                     wishlist_name or identifier,
