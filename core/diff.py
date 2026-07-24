@@ -1,7 +1,6 @@
 """Diff logic for computing added, removed, and price-changed items between polls."""
 
 import os
-from typing import Dict, List, Tuple
 
 from .models import Item
 
@@ -9,8 +8,8 @@ PRICE_NOTIFY_THRESHOLD = float(os.getenv("PRICE_NOTIFY_THRESHOLD", "20"))
 
 
 def diff_items(
-    previous: Dict[str, Item], current: List[Item]
-) -> tuple[List[Item], List[Item], List[Tuple[Item, int, int]]]:
+    previous: dict[str, Item], current: list[Item]
+) -> tuple[list[Item], list[Item], list[tuple[Item, int, int]]]:
     """
     Compute added, removed, and price_changes between previous and current.
     - previous: mapping item_id -> Item
@@ -25,7 +24,7 @@ def diff_items(
     added = [new_map[iid] for iid in new_ids - old_ids]
     removed = [previous[iid] for iid in old_ids - new_ids]
 
-    price_changes: List[Tuple[Item, int, int]] = []
+    price_changes: list[tuple[Item, int, int]] = []
 
     for iid in old_ids & new_ids:
         old_item = previous[iid]

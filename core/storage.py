@@ -1,16 +1,15 @@
 """SQLite persistence layer for wishlist items and change events."""
 
+import datetime
 import os
 import sqlite3
-import datetime
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
 
 import pytz
 
-from .models import Item
-from .logger import get_logger
 from . import run_context
+from .logger import get_logger
+from .models import Item
 
 logger = get_logger(__name__)
 
@@ -96,7 +95,7 @@ def _ensure_column(
         cur.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
 
 
-def get_previous_items(platform: str, wishlist_id: str) -> Dict[str, Item]:
+def get_previous_items(platform: str, wishlist_id: str) -> dict[str, Item]:
     """Return mapping item_id -> Item for existing DB entries."""
     with _connect() as con:
         cur = con.cursor()
@@ -110,7 +109,7 @@ def get_previous_items(platform: str, wishlist_id: str) -> Dict[str, Item]:
         )
         rows = cur.fetchall()
 
-    out: Dict[str, Item] = {}
+    out: dict[str, Item] = {}
     for row in rows:
         (
             item_id,
@@ -150,14 +149,14 @@ def get_previous_item_count(platform: str, wishlist_id: str) -> int:
 def find_readded_item_diagnostics(
     platform: str,
     wishlist_id: str,
-    added: List[Item],
+    added: list[Item],
     current_run_id: str | None = None,
     current_cycle_id: str | None = None,
-) -> List[ReaddedItemDiagnostic]:
+) -> list[ReaddedItemDiagnostic]:
     """Return added items whose most recent prior event was a removal."""
     event_run_id = current_run_id or run_context.PROCESS_RUN_ID
     event_cycle_id = current_cycle_id or run_context.get_cycle_id()
-    diagnostics: List[ReaddedItemDiagnostic] = []
+    diagnostics: list[ReaddedItemDiagnostic] = []
 
     with _connect() as con:
         cur = con.cursor()
@@ -195,10 +194,10 @@ def find_readded_item_diagnostics(
 def save_items_and_events(
     platform: str,
     wishlist_id: str,
-    new_items: List[Item],
-    added: List[Item],
-    removed: List[Item],
-    price_changes: List[Tuple[Item, int, int]],
+    new_items: list[Item],
+    added: list[Item],
+    removed: list[Item],
+    price_changes: list[tuple[Item, int, int]],
     run_id: str | None = None,
     cycle_id: str | None = None,
 ) -> None:

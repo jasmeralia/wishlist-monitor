@@ -1,19 +1,19 @@
 """Throne wishlist fetcher with three extraction strategies: NEXT_DATA, JSON-LD, grid."""
 
-import os
-import json
-import re
 import hashlib
+import json
+import os
+import re
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 import requests
 from bs4 import BeautifulSoup, Tag
-from tenacity import retry, wait_exponential_jitter, stop_after_attempt, RetryError
+from tenacity import RetryError, retry, stop_after_attempt, wait_exponential_jitter
 
 from core.dumps import write_dump
-from core.models import FetchResult, Item
 from core.logger import get_logger
+from core.models import FetchResult, Item
 
 logger = get_logger(__name__)
 
@@ -33,7 +33,7 @@ if PROXY_URL:
 
 
 def _normalize_target(target: str) -> str:
-    if target.startswith("http://") or target.startswith("https://"):
+    if target.startswith(("http://", "https://")):
         return target
     return f"https://throne.com/{target}"
 
@@ -53,7 +53,7 @@ def _fetch(url: str) -> str:
     return r.text
 
 
-def _extract_items_next_data(html: str, slug: str = "") -> Optional[List[Item]]:
+def _extract_items_next_data(html: str, slug: str = "") -> list[Item] | None:
     """Extract items from the __NEXT_DATA__ JSON script tag."""
     soup = BeautifulSoup(html, "html.parser")
     script = soup.find("script", id="__NEXT_DATA__")
@@ -61,7 +61,7 @@ def _extract_items_next_data(html: str, slug: str = "") -> Optional[List[Item]]:
         return None
     try:
         data = json.loads(script.string)
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
         return None
 
     found: list[Any] = []
@@ -94,7 +94,7 @@ def _extract_items_next_data(html: str, slug: str = "") -> Optional[List[Item]]:
     if not found:
         return None
 
-    items: List[Item] = []
+    items: list[Item] = []
     for it in found:
         name = it.get("name") or it.get("title") or ""
         price = None
@@ -135,12 +135,12 @@ def _extract_items_next_data(html: str, slug: str = "") -> Optional[List[Item]]:
             if price_field and "cent" in price_field.lower():
                 try:
                     price_cents = int(price)
-                except Exception:  # pylint: disable=broad-exception-caught
+                except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
                     price_cents = -1
             elif isinstance(price, int):
-                price_cents = price if price > 1000 else int(round(float(price) * 100))
+                price_cents = price if price > 1000 else round(float(price) * 100)
             elif isinstance(price, float):
-                price_cents = int(round(price * 100)) if price < 1000 else int(price)
+                price_cents = round(price * 100) if price < 1000 else int(price)
             else:
                 s = (
                     str(price)
@@ -153,10 +153,10 @@ def _extract_items_next_data(html: str, slug: str = "") -> Optional[List[Item]]:
                 try:
                     if re.fullmatch(r"\d+", s):
                         v = int(s)
-                        price_cents = v if v > 1000 else int(round(v * 100))
+                        price_cents = v if v > 1000 else round(v * 100)
                     else:
-                        price_cents = int(round(float(s) * 100))
-                except Exception:  # pylint: disable=broad-exception-caught
+                        price_cents = round(float(s) * 100)
+                except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
                     price_cents = -1
 
         items.append(
@@ -191,13 +191,13 @@ def _parse_jsonld_offer(offers: Any, default_currency: str = "USD") -> tuple[int
     currency = offer.get("priceCurrency") or currency
     try:
         if price is not None:
-            price_cents = int(round(float(str(price)) * 100))
-    except Exception:  # pylint: disable=broad-exception-caught
+            price_cents = round(float(str(price)) * 100)
+    except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001, S110
         pass
     return price_cents, currency
 
 
-def _parse_jsonld_item_entry(el: Any) -> Optional[Item]:
+def _parse_jsonld_item_entry(el: Any) -> Item | None:
     """Parse a single JSON-LD itemListElement entry into an Item, or return None."""
     item = el.get("item") if isinstance(el, dict) else el
     if not isinstance(item, dict):
@@ -220,14 +220,14 @@ def _parse_jsonld_item_entry(el: Any) -> Optional[Item]:
     )
 
 
-def _extract_items_jsonld(html: str) -> Optional[List[Item]]:
+def _extract_items_jsonld(html: str) -> list[Item] | None:
     """Extract items from JSON-LD ItemList script tags."""
     soup = BeautifulSoup(html, "html.parser")
-    out: List[Item] = []
+    out: list[Item] = []
     for script in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(script.string or "")
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001, S112
             continue
         data_list = data if isinstance(data, list) else [data]
         for d in data_list:
@@ -246,10 +246,10 @@ def _extract_items_jsonld(html: str) -> Optional[List[Item]]:
     return list(uniq.values())
 
 
-def _extract_items_grid(html: str) -> Optional[List[Item]]:
+def _extract_items_grid(html: str) -> list[Item] | None:
     """Extract items by scanning anchor tags with adjacent price text."""
     soup = BeautifulSoup(html, "html.parser")
-    items: List[Item] = []
+    items: list[Item] = []
     price_re = re.compile(r"(?<!\w)([$€£])\s?([0-9]+(?:[.,][0-9]{2})?)")
 
     for a in soup.find_all("a", href=True):
@@ -290,8 +290,8 @@ def _extract_items_grid(html: str) -> Optional[List[Item]]:
                 elif symbol == "£":
                     currency = "GBP"
                 try:
-                    price_cents = int(round(float(num.replace(",", ".")) * 100))
-                except Exception:  # pylint: disable=broad-exception-caught
+                    price_cents = round(float(num.replace(",", ".")) * 100)
+                except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
                     price_cents = -1
                 found_price = True
                 break
@@ -350,7 +350,7 @@ def fetch_items(identifier: str, wishlist_name: str | None = None) -> FetchResul
             complete=False,
             failure_reason=f"fetch_failed_after_retries: {e}",
         )
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught  # noqa: BLE001
         logger.error("Throne fetch threw unexpected exception for %s: %s", url, e)
         return FetchResult(
             items=[],
