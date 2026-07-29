@@ -83,7 +83,7 @@ This allows you to:
 ## Project Structure
 
 ```text
-wishlist_monitor/
+wishlist-monitor/
   monitor.py
   core/
     logger.py
@@ -435,7 +435,7 @@ cp .env.example .env
 ```yaml
 services:
   app:
-    image: ghcr.io/jasmeralia/wishlist_monitor:latest
+    image: ghcr.io/jasmeralia/wishlist-monitor:latest
     volumes:
       - /path/to/your/.env:/app/.env:ro
 ```
