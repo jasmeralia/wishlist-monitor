@@ -136,8 +136,8 @@ Production runs on the TrueNAS SCALE host `truenas.windsofstorm.net` as the Comp
    ```bash
    ssh truenas.windsofstorm.net \
      "sudo /mnt/myzmirror/myzdset/morgan/bin/truenas-app classify wishlist-monitor && \
-      sudo docker pull ghcr.io/jasmeralia/wishlist_monitor:latest && \
-      sudo /mnt/myzmirror/myzdset/morgan/bin/truenas-app update-image wishlist-monitor wishlist-monitor ghcr.io/jasmeralia/wishlist_monitor:latest"
+      sudo docker pull ghcr.io/jasmeralia/wishlist-monitor:latest && \
+      sudo /mnt/myzmirror/myzdset/morgan/bin/truenas-app update-image wishlist-monitor wishlist-monitor ghcr.io/jasmeralia/wishlist-monitor:latest"
    ```
    - `classify` must report `COMPOSE YAML — safe to update` before proceeding.
    - `docker pull` ensures the host has the freshly published image before the update.
@@ -145,11 +145,11 @@ Production runs on the TrueNAS SCALE host `truenas.windsofstorm.net` as the Comp
 3. Verify the running image matches the newly published version by comparing digests:
    ```bash
    ssh truenas.windsofstorm.net \
-     "sudo docker inspect ghcr.io/jasmeralia/wishlist_monitor:latest --format '{{index .RepoDigests 0}}' && \
-      sudo docker inspect ghcr.io/jasmeralia/wishlist_monitor:<NEW_TAG> --format '{{index .RepoDigests 0}}'"
+     "sudo docker inspect ghcr.io/jasmeralia/wishlist-monitor:latest --format '{{index .RepoDigests 0}}' && \
+      sudo docker inspect ghcr.io/jasmeralia/wishlist-monitor:<NEW_TAG> --format '{{index .RepoDigests 0}}'"
    ```
    The two digests must match. Only then confirm the post-update state and mark the task complete.
-4. Confirm the post-update JSON reports `"state": "RUNNING"` and `ghcr.io/jasmeralia/wishlist_monitor:latest` in `images`.
+4. Confirm the post-update JSON reports `"state": "RUNNING"` and `ghcr.io/jasmeralia/wishlist-monitor:latest` in `images`.
 
 Refer to `~/git/truenas/AGENTS.md` for general TrueNAS stack-management rules (classification, safety, raw `midclt` usage).
 
