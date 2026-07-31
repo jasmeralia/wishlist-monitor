@@ -53,10 +53,27 @@ def _events() -> list[tuple[str, str, str | None, str | None]]:
     return [(row[0], row[1], row[2], row[3]) for row in rows]
 
 
+def _observations() -> list[
+    tuple[str, int | None, int | None, int, str | None, str | None]
+]:
+    """Return item observation rows relevant to storage assertions."""
+    with sqlite3.connect(storage.DB_PATH) as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT item_id, price_cents, available, present, run_id, cycle_id
+            FROM item_observations
+            ORDER BY id
+            """
+        )
+        rows = cur.fetchall()
+    return [(row[0], row[1], row[2], row[3], row[4], row[5]) for row in rows]
+
+
 def test_save_items_upserts_current_items_and_records_events(
     isolated_db: None,
 ) -> None:
-    """Saving changes upserts current rows and records event metadata."""
+    """Saving changes upserts current rows and records events and observations."""
     existing = [_item("old", 100), _item("removed", 200)]
     storage.save_items_and_events(
         "amazon",
@@ -83,11 +100,65 @@ def test_save_items_upserts_current_items_and_records_events(
 
     stored = storage.get_previous_items("amazon", "wishlist")
     events = _events()
+    observations = _observations()
     assert set(stored) == {"old", "new"}
     assert stored["old"].price_cents == 150
     assert ("added", "new", "change-run", "change-cycle") in events
     assert ("price_change", "old", "change-run", "change-cycle") in events
     assert ("removed", "removed", "change-run", "change-cycle") in events
+    assert observations == [
+        ("old", 100, 1, 1, "seed-run", "seed-cycle"),
+        ("removed", 200, 1, 1, "seed-run", "seed-cycle"),
+        ("old", 150, 1, 1, "change-run", "change-cycle"),
+        ("new", 300, 1, 1, "change-run", "change-cycle"),
+        ("removed", None, None, 0, "change-run", "change-cycle"),
+    ]
+
+
+def test_observations_capture_unchanged_and_unavailable_states(
+    isolated_db: None,
+) -> None:
+    """Every saved poll records price and availability independent of events."""
+    available = _item("tracked", 100)
+    storage.save_items_and_events(
+        "amazon",
+        "wishlist",
+        [available],
+        added=[available],
+        removed=[],
+        price_changes=[],
+        run_id="first-run",
+        cycle_id="first-cycle",
+    )
+    storage.save_items_and_events(
+        "amazon",
+        "wishlist",
+        [available],
+        added=[],
+        removed=[],
+        price_changes=[],
+        run_id="second-run",
+        cycle_id="second-cycle",
+    )
+
+    unavailable = _item("tracked", -1)
+    unavailable.available = False
+    storage.save_items_and_events(
+        "amazon",
+        "wishlist",
+        [unavailable],
+        added=[],
+        removed=[],
+        price_changes=[],
+        run_id="third-run",
+        cycle_id="third-cycle",
+    )
+
+    assert _observations() == [
+        ("tracked", 100, 1, 1, "first-run", "first-cycle"),
+        ("tracked", 100, 1, 1, "second-run", "second-cycle"),
+        ("tracked", -1, 0, 1, "third-run", "third-cycle"),
+    ]
 
 
 def test_readded_item_diagnostics_report_latest_prior_removal(

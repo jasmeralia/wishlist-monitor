@@ -41,7 +41,7 @@ def now_utc_iso() -> str:
 
 
 def ensure_db() -> None:
-    """Create the items and events tables if they do not yet exist."""
+    """Create the current-state, event, and observation tables."""
     with _connect() as con:
         cur = con.cursor()
         cur.execute(
@@ -78,6 +78,41 @@ def ensure_db() -> None:
                 run_id TEXT,
                 cycle_id TEXT
             )
+        """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS item_observations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                observed_at TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                wishlist_id TEXT NOT NULL,
+                item_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                price_cents INTEGER,
+                currency TEXT,
+                available INTEGER,
+                present INTEGER NOT NULL,
+                product_url TEXT NOT NULL DEFAULT '',
+                image_url TEXT NOT NULL DEFAULT '',
+                binding TEXT NOT NULL DEFAULT '',
+                run_id TEXT,
+                cycle_id TEXT
+            )
+        """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_item_observations_item_time
+            ON item_observations (
+                platform, wishlist_id, item_id, observed_at, id
+            )
+        """
+        )
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_item_observations_cycle
+            ON item_observations (platform, wishlist_id, cycle_id)
         """
         )
         _ensure_column(cur, "events", "run_id", "TEXT")
@@ -242,6 +277,68 @@ def save_items_and_events(
                     it.binding,
                 ),
             )
+
+        # Record every successfully fetched item, even when its state is unchanged.
+        cur.executemany(
+            """
+            INSERT INTO item_observations (
+                observed_at, platform, wishlist_id, item_id, name,
+                price_cents, currency, available, present, product_url,
+                image_url, binding, run_id, cycle_id
+            )
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            [
+                (
+                    ts,
+                    platform,
+                    wishlist_id,
+                    it.item_id,
+                    it.name,
+                    it.price_cents,
+                    it.currency,
+                    1 if it.available else 0,
+                    1,
+                    it.product_url,
+                    it.image_url,
+                    it.binding,
+                    event_run_id,
+                    event_cycle_id,
+                )
+                for it in new_items
+            ],
+        )
+
+        # Absence is distinct from a fetched item whose availability is false.
+        cur.executemany(
+            """
+            INSERT INTO item_observations (
+                observed_at, platform, wishlist_id, item_id, name,
+                price_cents, currency, available, present, product_url,
+                image_url, binding, run_id, cycle_id
+            )
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            [
+                (
+                    ts,
+                    platform,
+                    wishlist_id,
+                    it.item_id,
+                    it.name,
+                    None,
+                    it.currency,
+                    None,
+                    0,
+                    it.product_url,
+                    it.image_url,
+                    it.binding,
+                    event_run_id,
+                    event_cycle_id,
+                )
+                for it in removed
+            ],
+        )
 
         # Events for added
         for it in added:

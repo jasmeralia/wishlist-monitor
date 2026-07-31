@@ -417,6 +417,24 @@ Tracks all changes:
 
 With fields for before/after prices and timestamps.
 
+### Table: `item_observations`
+
+Tracks price and availability history independently of notification thresholds.
+Every item returned by a successful saved poll gets an observation, including when
+its state is unchanged. Each observation contains:
+
+- UTC observation time
+- Platform, wishlist, and item identifiers
+- Name, price, currency, and availability
+- Product URL, image URL, and binding
+- Presence on the fetched wishlist
+- Run and poll-cycle identifiers
+
+When an item disappears, a final observation records `present = 0` with unknown
+price and availability. This keeps absence distinct from an item that was returned
+with `available = 0`. Incomplete fetches and polls rejected by removal guards do not
+produce observations.
+
 ---
 
 ## License
