@@ -264,6 +264,17 @@ RUN_ID=""                 # optional override for the process run ID
 
 The SQLite database and log file should be on a persistent volume (such as `/data`). Log rotation is controlled by `LOG_MAX_BYTES` and `LOG_BACKUPS`. Each process run adds a run ID to the configured log filename, and each daemon poll cycle adds a cycle ID to log lines, debug dump filenames, notification emails, and stored change events. Log pruning removes old run-specific log files that match the configured `LOG_FILE` basename plus a run ID suffix.
 
+### Item observation history retention
+
+```bash
+OBSERVATION_PRUNE_ENABLED="true"   # prune old item_observations rows automatically
+OBSERVATION_RETENTION_DAYS="120"   # remove item_observations rows older than this many days
+```
+
+- Every accepted poll writes an `item_observations` row per fetched item (see [Table: `item_observations`](#table-item_observations)), so this table grows every cycle regardless of whether anything changed. Retention keeps it from growing unbounded.
+- Pruning runs on the same schedule as debug dump and log pruning (`DEBUG_DUMP_PRUNE_INTERVAL_MINUTES`).
+- Set `OBSERVATION_RETENTION_DAYS="0"` or `OBSERVATION_PRUNE_ENABLED="false"` to retain observation history indefinitely.
+
 ---
 
 ## Running Locally (without Docker)
@@ -434,6 +445,9 @@ When an item disappears, a final observation records `present = 0` with unknown
 price and availability. This keeps absence distinct from an item that was returned
 with `available = 0`. Incomplete fetches and polls rejected by removal guards do not
 produce observations.
+
+Rows older than `OBSERVATION_RETENTION_DAYS` (default 120) are pruned automatically;
+see [Item observation history retention](#item-observation-history-retention).
 
 ---
 

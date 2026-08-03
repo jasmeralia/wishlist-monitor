@@ -1,5 +1,6 @@
 """Unit tests for SQLite storage behavior."""
 
+import datetime
 import os
 import sqlite3
 import tempfile
@@ -7,6 +8,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+import pytz
 
 _IMPORT_TMP = tempfile.TemporaryDirectory()
 os.environ["LOG_TO_FILE"] = "false"
@@ -201,3 +203,46 @@ def test_readded_item_diagnostics_report_latest_prior_removal(
     assert diagnostics[0].removed_cycle_id == "remove-cycle"
     assert diagnostics[0].current_run_id == "current-run"
     assert diagnostics[0].current_cycle_id == "current-cycle"
+
+
+def _insert_observation(item_id: str, observed_at: str) -> None:
+    with sqlite3.connect(storage.DB_PATH) as con:
+        con.execute(
+            """
+            INSERT INTO item_observations (
+                observed_at, platform, wishlist_id, item_id, name, present
+            )
+            VALUES (?, 'amazon', 'wishlist', ?, ?, 1)
+            """,
+            (observed_at, item_id, f"Item {item_id}"),
+        )
+        con.commit()
+
+
+def test_prune_observations_deletes_only_rows_past_retention(
+    isolated_db: None,
+) -> None:
+    """Rows older than max_age_days are deleted; newer rows are kept."""
+    old_ts = (
+        datetime.datetime.now(tz=pytz.UTC) - datetime.timedelta(days=200)
+    ).isoformat()
+    _insert_observation("old", old_ts)
+    _insert_observation("recent", storage.now_utc_iso())
+
+    deleted = storage.prune_observations(120)
+
+    assert deleted == 1
+    assert [row[0] for row in _observations()] == ["recent"]
+
+
+def test_prune_observations_disabled_when_max_age_not_positive(
+    isolated_db: None,
+) -> None:
+    """A max_age_days of zero or less deletes nothing."""
+    old_ts = (
+        datetime.datetime.now(tz=pytz.UTC) - datetime.timedelta(days=500)
+    ).isoformat()
+    _insert_observation("ancient", old_ts)
+
+    assert storage.prune_observations(0) == 0
+    assert [row[0] for row in _observations()] == ["ancient"]

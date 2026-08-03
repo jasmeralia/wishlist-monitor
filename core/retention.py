@@ -4,7 +4,7 @@ import os
 import time
 from pathlib import Path
 
-from . import run_context
+from . import run_context, storage
 from .logger import get_logger
 
 logger = get_logger(__name__)
@@ -159,7 +159,23 @@ def prune_log_files() -> None:
     )
 
 
+def prune_item_observations() -> None:
+    """Delete item_observations rows older than the configured retention window."""
+    if not _env_bool("OBSERVATION_PRUNE_ENABLED", True):
+        return
+
+    max_age_days = env_int("OBSERVATION_RETENTION_DAYS", 120, 0)
+    deleted = storage.prune_observations(max_age_days)
+    if deleted:
+        logger.info(
+            "Observation pruning complete: deleted=%d (retention=%d days).",
+            deleted,
+            max_age_days,
+        )
+
+
 def prune_diagnostics() -> None:
-    """Prune all generated diagnostic files."""
+    """Prune all generated diagnostic files and stale observation history."""
     prune_debug_dumps()
     prune_log_files()
+    prune_item_observations()

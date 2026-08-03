@@ -169,6 +169,22 @@ def get_previous_items(platform: str, wishlist_id: str) -> dict[str, Item]:
     return out
 
 
+def prune_observations(max_age_days: int) -> int:
+    """Delete item_observations rows older than max_age_days; return rows deleted."""
+    if max_age_days <= 0:
+        return 0
+
+    cutoff = (
+        datetime.datetime.now(tz=pytz.UTC) - datetime.timedelta(days=max_age_days)
+    ).isoformat()
+    with _connect() as con:
+        cur = con.cursor()
+        cur.execute("DELETE FROM item_observations WHERE observed_at < ?", (cutoff,))
+        deleted = cur.rowcount
+        con.commit()
+    return deleted
+
+
 def get_previous_item_count(platform: str, wishlist_id: str) -> int:
     """Return the number of stored items for the given platform/wishlist."""
     with _connect() as con:
