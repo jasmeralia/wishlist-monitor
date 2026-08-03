@@ -348,8 +348,8 @@ def run_once() -> int:
         cycle_id,
         run_context.get_log_file_path(),
     )
-    prune_diagnostics()
     storage.ensure_db()
+    prune_diagnostics()
     cfg = load_config()
     wishlists = cfg.get("wishlists", [])
 

@@ -86,6 +86,8 @@ Ruff uses its defaults (line length 88).
 | `EMAIL_THEME` | `dark` | Email template theme (`dark` or `light`) |
 | `LOG_LEVEL` | `INFO` | Root log level |
 | `DEBUG_DIR` | `/data/debug_dumps` | Directory for HTML debug captures |
+| `OBSERVATION_PRUNE_ENABLED` | `true` | Auto-prune old `item_observations` rows |
+| `OBSERVATION_RETENTION_DAYS` | `120` | Days of item observation history to retain |
 
 ## Config File Format (`config.json`)
 
