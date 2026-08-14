@@ -2,6 +2,7 @@ requests
 beautifulsoup4
 pytz
 tenacity
+python-dotenv
 types-pytz
 types-requests
 Jinja2
