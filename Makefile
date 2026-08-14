@@ -27,4 +27,4 @@ mypy:
 	$(MYPY) $(SRC)
 
 test:
-	$(PYTHON) -m pytest $(TESTS)
+	$(PYTHON) -m pytest --cov --cov-report=term-missing --cov-report=xml $(TESTS)

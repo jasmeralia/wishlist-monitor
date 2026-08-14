@@ -1,5 +1,7 @@
 # Unified Wishlist Monitor (Amazon + Throne)
 
+[![codecov](https://codecov.io/gh/jasmeralia/wishlist-monitor/graph/badge.svg)](https://codecov.io/gh/jasmeralia/wishlist-monitor)
+
 This project monitors **Amazon** and **Throne** wishlists, detects changes, and sends HTML email reports whenever items are:
 
 - Added  

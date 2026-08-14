@@ -1,6 +1,19 @@
 [tool.mypy]
 check_untyped_defs = true
 
+[tool.coverage.run]
+source = ["."]
+omit = [
+    ".venv/*",
+    "tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]
+
 [tool.pylint.format]
 max-line-length = 120
 
