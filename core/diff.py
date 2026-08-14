@@ -3,8 +3,11 @@
 import os
 
 from .models import Item
+from .retention import env_bool
 
 PRICE_NOTIFY_THRESHOLD = float(os.getenv("PRICE_NOTIFY_THRESHOLD", "20"))
+NOTIFY_ON_AVAILABILITY_CHANGE = env_bool("NOTIFY_ON_AVAILABILITY_CHANGE", True)
+NOTIFY_ON_PRICE_INCREASE = env_bool("NOTIFY_ON_PRICE_INCREASE", True)
 
 
 def diff_items(
@@ -16,6 +19,11 @@ def diff_items(
     - current: list of Items
     Returns:
       (added_items, removed_items, price_changes[(item_after, before_cents, after_cents)])
+
+    An item whose `available` flag flips (with or without a price change alongside
+    it, e.g. Amazon representing "unavailable" as a negative price) is reported
+    through price_changes too, gated by NOTIFY_ON_AVAILABILITY_CHANGE instead of
+    the percentage threshold below.
     """
     new_map = {it.item_id: it for it in current}
     old_ids = set(previous.keys())
@@ -31,12 +39,23 @@ def diff_items(
         new_item = new_map[iid]
         before = old_item.price_cents
         after = new_item.price_cents
+        availability_changed = old_item.available != new_item.available
 
-        if before == after:
+        if before == after and not availability_changed:
             continue
 
-        # If either price is unknown (<0), always include
-        if before is None or after is None or before < 0 or after < 0:
+        # If either price is unknown/negative, or availability itself flipped,
+        # always include (subject to the availability-change toggle) rather than
+        # applying the percentage threshold below.
+        if (
+            before is None
+            or after is None
+            or before < 0
+            or after < 0
+            or availability_changed
+        ):
+            if availability_changed and not NOTIFY_ON_AVAILABILITY_CHANGE:
+                continue
             price_changes.append((new_item, before, after))
             continue
 
@@ -46,7 +65,12 @@ def diff_items(
         else:
             pct = abs(after - before) * 100.0 / abs(before)
 
-        if pct >= PRICE_NOTIFY_THRESHOLD:
-            price_changes.append((new_item, before, after))
+        if pct < PRICE_NOTIFY_THRESHOLD:
+            continue
+
+        if after > before and not NOTIFY_ON_PRICE_INCREASE:
+            continue
+
+        price_changes.append((new_item, before, after))
 
     return added, removed, price_changes

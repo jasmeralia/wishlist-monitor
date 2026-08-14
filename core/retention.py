@@ -12,7 +12,8 @@ logger = get_logger(__name__)
 DEBUG_DUMP_PATTERNS = ("amazon_*.html", "throne_*.html")
 
 
-def _env_bool(name: str, default: bool) -> bool:
+def env_bool(name: str, default: bool) -> bool:
+    """Read a boolean environment variable with fallback."""
     raw = os.getenv(name)
     if raw is None:
         return default
@@ -102,7 +103,7 @@ def _debug_dump_files(debug_dir: Path) -> list[Path]:
 
 def prune_debug_dumps() -> None:
     """Delete old debug dumps and enforce a maximum retained file count."""
-    if not _env_bool("DEBUG_DUMP_PRUNE_ENABLED", True):
+    if not env_bool("DEBUG_DUMP_PRUNE_ENABLED", True):
         return
 
     debug_dir = Path(os.getenv("DEBUG_DIR", "/data/debug_dumps"))
@@ -148,7 +149,7 @@ def _log_files() -> list[Path]:
 
 def prune_log_files() -> None:
     """Delete old process-run log files and enforce a maximum retained count."""
-    if not _env_bool("LOG_PRUNE_ENABLED", True):
+    if not env_bool("LOG_PRUNE_ENABLED", True):
         return
 
     _prune_files(
@@ -161,7 +162,7 @@ def prune_log_files() -> None:
 
 def prune_item_observations() -> None:
     """Delete item_observations rows older than the configured retention window."""
-    if not _env_bool("OBSERVATION_PRUNE_ENABLED", True):
+    if not env_bool("OBSERVATION_PRUNE_ENABLED", True):
         return
 
     max_age_days = env_int("OBSERVATION_RETENTION_DAYS", 120, 0)

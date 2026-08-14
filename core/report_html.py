@@ -69,7 +69,7 @@ def build_html_report(
         after_str = _cents_to_str(after, it.currency)
         pct_str = ""
         color = "#BDC1C6"
-        if before and before > 0 and after and after > 0:
+        if before and before > 0 and after and after > 0 and after != before:
             delta = after - before
             pct = abs(delta) * 100 / abs(before)
             sign = "+" if delta > 0 else "-"
