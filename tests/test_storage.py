@@ -246,3 +246,44 @@ def test_prune_observations_disabled_when_max_age_not_positive(
 
     assert storage.prune_observations(0) == 0
     assert [row[0] for row in _observations()] == ["ancient"]
+
+
+def test_ensure_db_adds_columns_to_legacy_schema(tmp_path: Path) -> None:
+    """Database initialization migrates missing columns in legacy tables."""
+    old_db_path = storage.DB_PATH
+    storage.DB_PATH = str(tmp_path / "legacy.sqlite3")
+    try:
+        with sqlite3.connect(storage.DB_PATH) as con:
+            con.execute(
+                "CREATE TABLE items (platform TEXT, wishlist_id TEXT, item_id TEXT)"
+            )
+            con.execute("CREATE TABLE events (id INTEGER PRIMARY KEY)")
+
+        storage.ensure_db()
+
+        with sqlite3.connect(storage.DB_PATH) as con:
+            item_columns = {row[1] for row in con.execute("PRAGMA table_info(items)")}
+            event_columns = {row[1] for row in con.execute("PRAGMA table_info(events)")}
+        assert "binding" in item_columns
+        assert {"run_id", "cycle_id"} <= event_columns
+    finally:
+        storage.DB_PATH = old_db_path
+
+
+def test_get_previous_item_count_reports_rows(isolated_db: None) -> None:
+    """Stored item counts are returned for populated and absent wishlists."""
+    item = _item("counted")
+    storage.save_items_and_events(
+        "amazon", "wishlist", [item], [item], [], [], run_id="run", cycle_id="cycle"
+    )
+
+    assert storage.get_previous_item_count("amazon", "wishlist") == 1
+    assert storage.get_previous_item_count("amazon", "missing") == 0
+
+
+def test_readded_diagnostics_ignore_latest_non_removal(isolated_db: None) -> None:
+    """Items whose latest prior event was not removal are excluded from diagnostics."""
+    item = _item("existing")
+    storage.save_items_and_events("amazon", "wishlist", [item], [item], [], [])
+
+    assert storage.find_readded_item_diagnostics("amazon", "wishlist", [item]) == []
