@@ -1,5 +1,6 @@
 """Unit tests for the Amazon wishlist fetcher's parse_item_li()."""
 
+import itertools
 import os
 import tempfile
 from unittest import mock
@@ -206,7 +207,12 @@ def test_apply_global_spacing_sleeps_only_when_needed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Global request spacing sleeps for the remaining interval and updates state."""
-    times = iter((105.0, 110.0))
+    # amazon.time is the shared stdlib time module, so patching its `time` attribute
+    # also affects logging's internal LogRecord timestamping on some Python versions
+    # (the log call inside _apply_global_spacing happens between the function's own
+    # two time.time() reads). Repeat the final value rather than using a strict
+    # two-item iterator so an incidental extra read doesn't fail the test.
+    times = itertools.chain([105.0], itertools.repeat(110.0))
     sleeper = mock.Mock()
     monkeypatch.setattr(amazon, "AMAZON_MIN_SPACING", 10)
     monkeypatch.setattr(amazon, "_LAST_AMAZON_FETCH_TS", 100.0)
