@@ -206,10 +206,23 @@ MODE="daemon"          # "daemon" or "once"
 ### Price change notifications
 
 ```bash
-PRICE_NOTIFY_THRESHOLD="20"   # percent change needed before price alerts are sent
+PRICE_NOTIFY_THRESHOLD="20"          # percent change needed before price alerts are sent
+NOTIFY_ON_AVAILABILITY_CHANGE="true" # notify when an item becomes unavailable or returns to availability
+NOTIFY_ON_PRICE_INCREASE="true"      # notify when a price goes up (decreases always notify)
 ```
 
 If either the previous or current price is unknown, changes are always included.
+
+- `NOTIFY_ON_AVAILABILITY_CHANGE` controls whether an item flipping between available and
+  unavailable triggers a notification, independent of any price change. Set to `false` to
+  treat these as noise while still being notified about items added to or removed from the
+  wishlist itself. Availability history is still recorded in `item_observations` either way
+  (see [Table: `item_observations`](#table-item_observations)).
+- `NOTIFY_ON_PRICE_INCREASE` controls whether a price *increase* above
+  `PRICE_NOTIFY_THRESHOLD` triggers a notification. Price *decreases* (sales) always notify
+  regardless of this setting.
+- Both default to `true`, preserving the previous behavior. These are process-wide defaults;
+  per-wishlist or per-user overrides may be added if/when multi-user support lands.
 
 ### Amazon-specific tuning
 

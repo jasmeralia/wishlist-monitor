@@ -88,6 +88,9 @@ Ruff uses its defaults (line length 88).
 | `DEBUG_DIR` | `/data/debug_dumps` | Directory for HTML debug captures |
 | `OBSERVATION_PRUNE_ENABLED` | `true` | Auto-prune old `item_observations` rows |
 | `OBSERVATION_RETENTION_DAYS` | `120` | Days of item observation history to retain |
+| `PRICE_NOTIFY_THRESHOLD` | `20` | Percent price change required before notifying |
+| `NOTIFY_ON_AVAILABILITY_CHANGE` | `true` | Notify when an item becomes unavailable or returns to availability |
+| `NOTIFY_ON_PRICE_INCREASE` | `true` | Notify when a price increases (decreases always notify) |
 
 ## Config File Format (`config.json`)
 
