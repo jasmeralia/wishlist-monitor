@@ -124,3 +124,15 @@ def test_price_increase_still_reported_when_availability_changes(
     assert [(item.item_id, before, after) for item, before, after in price_changes] == [
         ("item", -1, 100)
     ]
+
+
+def test_price_change_from_zero_uses_full_percentage() -> None:
+    """A change from a zero price is treated as a full percentage change."""
+    previous = {"item": _item("item", 0)}
+    current = [_item("item", 1)]
+
+    _, _, price_changes = diff_items(previous, current)
+
+    assert [(item.item_id, before, after) for item, before, after in price_changes] == [
+        ("item", 0, 1)
+    ]

@@ -46,6 +46,33 @@ def test_load_config_rejects_empty_wishlist_list(tmp_path: Path) -> None:
         monitor.load_config(str(path))
 
 
+def test_load_config_rejects_missing_file(tmp_path: Path) -> None:
+    """A missing configuration file exits with an error."""
+    with pytest.raises(SystemExit):
+        monitor.load_config(str(tmp_path / "missing.json"))
+
+
+def test_load_config_rejects_invalid_json(tmp_path: Path) -> None:
+    """Malformed JSON exits with an error instead of escaping a decoder exception."""
+    path = tmp_path / "config.json"
+    path.write_text("{invalid", encoding="utf-8")
+
+    with pytest.raises(SystemExit):
+        monitor.load_config(str(path))
+
+
+@pytest.mark.parametrize("payload", ({}, [], {"wishlists": "not-a-list"}))
+def test_load_config_rejects_invalid_top_level_shapes(
+    tmp_path: Path, payload: object
+) -> None:
+    """Configuration must be an object containing a non-empty wishlist list."""
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SystemExit):
+        monitor.load_config(str(path))
+
+
 def test_get_recipients_prefers_non_empty_wishlist_recipients(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -88,3 +115,9 @@ def test_wishlist_url_leaves_absolute_urls_unchanged() -> None:
     url = "https://example.com/list"
 
     assert monitor._wishlist_url("amazon", url) == url
+
+
+def test_wishlist_url_rejects_empty_or_unknown_identifiers() -> None:
+    """Missing identifiers and unknown platforms have no user-facing URL."""
+    assert monitor._wishlist_url("amazon", "") is None
+    assert monitor._wishlist_url("unknown", "identifier") is None
