@@ -4,3 +4,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
