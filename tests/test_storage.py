@@ -2,7 +2,6 @@
 
 import datetime
 import os
-import sqlite3
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -42,7 +41,7 @@ def isolated_db(tmp_path: Path) -> Iterator[None]:
 
 def _events() -> list[tuple[str, str, str | None, str | None]]:
     """Return event rows relevant to storage assertions."""
-    with sqlite3.connect(storage.DB_PATH) as con:
+    with storage._connect() as con:
         cur = con.cursor()
         cur.execute(
             """
@@ -59,7 +58,7 @@ def _observations() -> list[
     tuple[str, int | None, int | None, int, str | None, str | None]
 ]:
     """Return item observation rows relevant to storage assertions."""
-    with sqlite3.connect(storage.DB_PATH) as con:
+    with storage._connect() as con:
         cur = con.cursor()
         cur.execute(
             """
@@ -206,7 +205,7 @@ def test_readded_item_diagnostics_report_latest_prior_removal(
 
 
 def _insert_observation(item_id: str, observed_at: str) -> None:
-    with sqlite3.connect(storage.DB_PATH) as con:
+    with storage._connect() as con:
         con.execute(
             """
             INSERT INTO item_observations (
@@ -253,15 +252,16 @@ def test_ensure_db_adds_columns_to_legacy_schema(tmp_path: Path) -> None:
     old_db_path = storage.DB_PATH
     storage.DB_PATH = str(tmp_path / "legacy.sqlite3")
     try:
-        with sqlite3.connect(storage.DB_PATH) as con:
+        with storage._connect() as con:
             con.execute(
                 "CREATE TABLE items (platform TEXT, wishlist_id TEXT, item_id TEXT)"
             )
             con.execute("CREATE TABLE events (id INTEGER PRIMARY KEY)")
+            con.commit()
 
         storage.ensure_db()
 
-        with sqlite3.connect(storage.DB_PATH) as con:
+        with storage._connect() as con:
             item_columns = {row[1] for row in con.execute("PRAGMA table_info(items)")}
             event_columns = {row[1] for row in con.execute("PRAGMA table_info(events)")}
             observation_columns = {

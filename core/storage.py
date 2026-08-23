@@ -1,5 +1,6 @@
 """SQLite persistence layer for wishlist items and change events."""
 
+import contextlib
 import datetime
 import os
 import sqlite3
@@ -29,10 +30,17 @@ class ReaddedItemDiagnostic:
     current_cycle_id: str
 
 
-def _connect() -> sqlite3.Connection:
-    """Open (and create parent dirs for) the SQLite database."""
+def _connect() -> contextlib.closing[sqlite3.Connection]:
+    """
+    Open (and create parent dirs for) the SQLite database.
+
+    Returns a `contextlib.closing` wrapper so `with _connect() as con:` both
+    yields the connection and guarantees `con.close()` on exit. Every caller
+    already commits explicitly before the `with` block ends, so this changes
+    only connection lifecycle, not transaction behavior.
+    """
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    return sqlite3.connect(DB_PATH)
+    return contextlib.closing(sqlite3.connect(DB_PATH))
 
 
 def now_utc_iso() -> str:

@@ -1,7 +1,6 @@
 """Regression tests for incomplete wishlist fetch removal guards."""
 
 import os
-import sqlite3
 import tempfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -40,7 +39,7 @@ def _seed_items(platform: str, wishlist_id: str, items: list[Item]) -> None:
 
 def _event_count(event_type: str) -> int:
     """Return the number of stored events with the given type."""
-    with sqlite3.connect(storage.DB_PATH) as con:
+    with storage._connect() as con:
         cur = con.cursor()
         cur.execute("SELECT COUNT(*) FROM events WHERE event_type=?", (event_type,))
         row = cur.fetchone()
