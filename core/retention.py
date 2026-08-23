@@ -9,7 +9,7 @@ from .logger import get_logger
 
 logger = get_logger(__name__)
 
-DEBUG_DUMP_PATTERNS = ("amazon_*.html", "throne_*.html")
+DEBUG_DUMP_PATTERNS = ("amazon_*.html", "throne_*.html", "honeybirdette_*.html")
 
 
 def env_bool(name: str, default: bool) -> bool:

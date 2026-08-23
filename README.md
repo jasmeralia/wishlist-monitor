@@ -1,8 +1,10 @@
-# Unified Wishlist Monitor (Amazon + Throne)
+# Unified Wishlist Monitor (Amazon + Throne + Honey Birdette)
 
 [![codecov](https://codecov.io/gh/jasmeralia/wishlist-monitor/graph/badge.svg)](https://codecov.io/gh/jasmeralia/wishlist-monitor)
 
-This project monitors **Amazon** and **Throne** wishlists, detects changes, and sends HTML email reports whenever items are:
+This project monitors **Amazon** and **Throne** wishlists, and live markdowns on
+**Honey Birdette**'s US storefront in configured categories/sizes, detects changes,
+and sends HTML email reports whenever items are:
 
 - Added  
 - Removed  
@@ -30,6 +32,9 @@ It provides:
 
 - Amazon wishlists (using the mobile site with retry logic and CAPTCHA handling)
 - Throne wishlists (parsing Next.js JSON, JSON-LD, and HTML grid layouts)
+- Honey Birdette live markdowns (scanning the US storefront's Shopify catalog for
+  configured category/size matches; see
+  [Honey Birdette configuration](#honey-birdette-configuration))
 
 ### HTML email reports
 
@@ -97,6 +102,7 @@ wishlist-monitor/
   fetchers/
     amazon.py
     throne.py
+    honeybirdette.py
   config.json
   requirements.txt
   requirements-dev.txt
@@ -136,6 +142,24 @@ The monitor is configured via a single JSON file, typically mounted at `/data/co
       "name": "Morgan Personal Deals",
       "identifier": "https://www.amazon.com/hz/wishlist/ls/XYZ987"
       // Uses global EMAIL_TO and global POLL_MINUTES
+    },
+    {
+      "platform": "honeybirdette",
+      "name": "Honey Birdette Sale Watch",
+      "identifier": "us",
+      "poll_minutes": 360,
+      "options": {
+        "sale_only": true,
+        "matches": [
+          {"type": "bra", "band": "34", "cup": "C"},
+          {"type": "thong", "size": "M"},
+          {"type": "sheers", "size": "M"}
+        ]
+      },
+      "notifications": {
+        "removed": false,
+        "price_increase": false
+      }
     }
   ]
 }
@@ -143,20 +167,98 @@ The monitor is configured via a single JSON file, typically mounted at `/data/co
 
 ### Required fields
 
-- `platform`: `"amazon"` or `"throne"`
+- `platform`: `"amazon"`, `"throne"`, or `"honeybirdette"`
 - `name`: a human-readable label used in logs and emails
 - `identifier`:
   - Amazon: wishlist URL or ID
   - Throne: username or full URL
+  - Honey Birdette: a storefront domain/URL (e.g. `"us.honeybirdette.com"`), or
+    any other value to use the default US storefront
 
 ### Optional fields
 
 - `recipients`: array of email addresses for this wishlist  
 - `poll_minutes`: integer polling interval in minutes (per wishlist)  
 - `enabled`: boolean, defaults to `true` (set to `false` to skip this entry)
+- `options`: platform-specific settings (currently used by Honey Birdette; see
+  [Honey Birdette configuration](#honey-birdette-configuration))
+- `notifications`: per-source overrides for which change types email; see
+  [Per-wishlist notification policy](#per-wishlist-notification-policy)
 
 If `recipients` is omitted or empty, the monitor uses the global `EMAIL_TO`.  
 If both `recipients` and `EMAIL_TO` are effectively empty, no email is sent and a log entry describes the situation.
+
+---
+
+## Honey Birdette configuration
+
+Honey Birdette is monitored differently from Amazon/Throne: instead of a single
+wishlist URL, the fetcher scans Honey Birdette's live US storefront catalog
+(via its public Shopify `/products.json` endpoint — there's no dependable
+sale-collection URL to rely on) and looks for variants in the categories/sizes
+you configure that carry a **genuine live markdown**
+(`compare_at_price > price`), not just a promotional banner or stale
+search-engine result.
+
+```json
+{
+  "platform": "honeybirdette",
+  "name": "Honey Birdette Sale Watch",
+  "identifier": "us",
+  "poll_minutes": 360,
+  "options": {
+    "sale_only": true,
+    "matches": [
+      {"type": "bra", "band": "34", "cup": "C"},
+      {"type": "thong", "size": "M"},
+      {"type": "sheers", "size": "M"}
+    ]
+  }
+}
+```
+
+- `options.matches`: a list of category/size rules. `type` is one of `"bra"`,
+  `"thong"`, `"sheers"`, `"stockings"`, or `"hosiery"` (sheers/stockings/hosiery
+  all map to the same storefront category). Bra entries need `band` + `cup`;
+  everything else needs `size`. Matching is case- and whitespace-insensitive,
+  and cup values treat `-`/`/` interchangeably (`"DD-E"` matches `"DD/E"`).
+- `options.sale_only` (default `true`): only markdown variants are tracked.
+  Set `false` to track matching variants at any price.
+- A variant that's on sale but currently out of stock is kept in the snapshot
+  with `available: false`, so a restock shows up as an availability change
+  rather than a rediscovery. A variant drops out of the snapshot once its
+  markdown ends or it's genuinely removed from the storefront.
+- Zero current matches (no live sale in your configured sizes right now) is
+  the normal, common state — it's not treated as a scrape failure.
+- A poll interval around 360 minutes (6 hours) is a reasonable default; the
+  fetcher is polite about it (retries with backoff, a real User-Agent, and a
+  small delay between catalog pages).
+
+---
+
+## Per-wishlist notification policy
+
+Any wishlist entry may include a `notifications` object to control which
+change types actually generate an email for that source, independent of the
+global `NOTIFY_ON_*`/`PRICE_NOTIFY_THRESHOLD` env vars:
+
+```json
+"notifications": {
+  "added": true,
+  "removed": false,
+  "price_decrease": true,
+  "price_increase": false,
+  "availability": true,
+  "price_decrease_threshold_percent": 0
+}
+```
+
+All keys are optional and default to the existing global behavior. This is
+useful for a source like Honey Birdette where a further markdown or a restock
+is interesting, but a sale ending or a price bump back to full price isn't —
+without changing what Amazon/Throne notify on. `added`/`removed` are always
+saved to the database regardless of these toggles; they only control what's
+included in the email itself.
 
 ---
 
@@ -247,10 +349,25 @@ THRONE_PROXY_URL=""              # optional HTTP(S) proxy for Throne requests
 THRONE_DEBUG_LOG_SAMPLES="true"  # log a few parsed items when debug logging is enabled
 ```
 
+### Honey Birdette fetcher
+
+```bash
+HONEYBIRDETTE_MAX_PAGES="20"              # max /products.json pages fetched per poll
+HONEYBIRDETTE_MIN_PRODUCTS="50"           # below this catalog size, the fetch fails closed
+HONEYBIRDETTE_PAGE_SLEEP_SECONDS="1"      # delay between successive catalog page fetches
+HONEYBIRDETTE_USER_AGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+```
+
+- `HONEYBIRDETTE_MIN_PRODUCTS` is a scrape-safety guard: if the live catalog
+  comes back smaller than this, the fetch is treated as incomplete rather than
+  a real (implausibly small) storefront.
+- `HONEYBIRDETTE_MAX_PAGES` bounds catalog pagination, matching the pattern
+  used by `AMAZON_MAX_PAGES` for Amazon.
+
 ### Debug output
 
 ```bash
-DEBUG_DIR="/data/debug_dumps"    # shared directory for HTML debug dumps (Amazon & Throne)
+DEBUG_DIR="/data/debug_dumps"    # shared directory for HTML/JSON debug dumps (Amazon, Throne & Honey Birdette)
 DEBUG_DUMP_PRUNE_ENABLED="true"  # prune old debug dumps automatically
 DEBUG_DUMP_MAX_AGE_DAYS="7"      # remove debug dumps older than this many days
 DEBUG_DUMP_MAX_FILES="500"       # keep at most this many debug dump files
@@ -258,7 +375,7 @@ DEBUG_DUMP_PRUNE_INTERVAL_MINUTES="60"
 ```
 
 - Both Amazon and Throne dump the raw fetched HTML into `DEBUG_DIR` for scrape diagnostics. Dump filenames include the active cycle ID when one is available.
-- Debug dump pruning only removes known `amazon_*.html` and `throne_*.html` files inside `DEBUG_DIR`.
+- Debug dump pruning only removes known `amazon_*.html`, `throne_*.html`, and `honeybirdette_*.html` files inside `DEBUG_DIR`.
 
 ### Paths and logging
 
@@ -421,15 +538,17 @@ Tracks the current known state of each item.
 
 Columns include:
 
-- `platform` (amazon, throne)
+- `platform` (amazon, throne, honeybirdette)
 - `wishlist_id` (identifier from config.json)
 - `item_id` (stable item key)
 - `name`
 - `price_cents` (integer; -1 for unavailable)
+- `compare_at_price_cents` (integer; -1 if the platform doesn't expose one or it's not a markdown)
 - `currency`
 - `product_url`
 - `image_url`
 - `available`
+- `binding` (normalized variant descriptor, e.g. `"32 DD/E"` or `"XS"`)
 - `first_seen` (UTC timestamp)
 - `last_seen` (UTC timestamp)
 

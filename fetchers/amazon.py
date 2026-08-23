@@ -7,6 +7,7 @@ import re
 import time
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -246,13 +247,20 @@ def _apply_global_spacing(
     _LAST_AMAZON_FETCH_TS = time.time()
 
 
-def fetch_items(identifier: str, wishlist_name: str | None = None) -> FetchResult:
+def fetch_items(
+    identifier: str,
+    wishlist_name: str | None = None,
+    options: dict[str, Any] | None = None,  # pylint: disable=unused-argument
+) -> FetchResult:
     """
     Fetch all items for a given Amazon wishlist using the mobile wishlist layout.
 
     identifier may be:
       - a full URL like https://www.amazon.com/hz/wishlist/ls/XYZ
       - a bare wishlist ID like XYZ
+
+    `options` is accepted for interface compatibility with fetchers that use
+    source-specific config (e.g. Honey Birdette) and is ignored here.
     """
     session = requests.Session()
 

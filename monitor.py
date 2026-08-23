@@ -16,6 +16,7 @@ from core.diff import diff_items
 from core.emailer import get_global_recipients, send_email
 from core.logger import get_logger
 from core.models import FetchResult
+from core.notification_policy import resolve_notification_settings
 from core.report_html import build_html_report
 from core.retention import env_int, prune_diagnostics
 from fetchers import FETCHERS
@@ -45,6 +46,8 @@ def _wishlist_url(platform: str, identifier: str) -> str | None:
         return f"https://www.amazon.com/hz/wishlist/ls/{identifier}"
     if platform == "throne":
         return f"https://throne.com/{identifier}"
+    if platform == "honeybirdette":
+        return "https://us.honeybirdette.com/"
     return None
 
 
@@ -104,82 +107,19 @@ def normalize_fetch_result(result: Any) -> FetchResult:
     )
 
 
-def process_wishlist(wl: dict[str, Any]) -> None:
-    """Fetch, diff, and notify for a single wishlist config entry."""
-    platform = wl.get("platform", "").strip().lower()
-    name = wl.get("name", "").strip()
-    identifier = wl.get("identifier", "").strip()
-    enabled = wl.get("enabled", True)
-
-    if not platform or not name or not identifier:
-        logger.error(
-            "Invalid wishlist entry (missing platform/name/identifier): %s", wl
-        )
-        return
-
-    if not enabled:
-        logger.info("Wishlist '%s' (%s) is disabled; skipping.", name, platform)
-        return
-
-    fetcher = FETCHERS.get(platform)
-    if not fetcher:
-        logger.error(
-            "No fetcher registered for platform '%s'; skipping wishlist '%s'.",
-            platform,
-            name,
-        )
-        return
-
-    wishlist_id = identifier
-    logger.info(
-        "Processing wishlist: platform=%s, name=%s, identifier=%s",
-        platform,
-        name,
-        identifier,
-    )
-
-    previous_items = storage.get_previous_items(platform, wishlist_id)
-    previous_count = len(previous_items)
-
-    fetch_result = normalize_fetch_result(fetcher(identifier, name))
-    items = fetch_result.items
-    dump_paths = fetch_result.dump_paths
-
-    if not fetch_result.complete:
-        logger.error(
-            "Incomplete fetch for %s '%s' (%s); skipping diff/save/notification. "
-            "reason=%s previous_count=%d fetched_count=%d dumps=%s run_id=%s cycle_id=%s",
-            platform,
-            name,
-            wishlist_id,
-            fetch_result.failure_reason or "<unknown>",
-            previous_count,
-            len(items),
-            [str(p) for p in dump_paths],
-            run_context.PROCESS_RUN_ID,
-            run_context.get_cycle_id(),
-        )
-        return
-
-    if not items:
-        if previous_count > 0:
-            logger.error(
-                "Fetch returned zero items for %s:%s but previous count is %d; skipping diff.",
-                platform,
-                wishlist_id,
-                previous_count,
-            )
-        else:
-            logger.info(
-                "Fetch returned zero items for %s:%s and no previous items; skipping.",
-                platform,
-                wishlist_id,
-            )
-        return
-
-    added, removed, price_changes = diff_items(previous_items, items)
-    new_count = len(items)
-
+def _removal_guard_triggered(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    platform: str,
+    name: str,
+    wishlist_id: str,
+    previous_count: int,
+    new_count: int,
+    added: list[Any],
+    removed: list[Any],
+    price_changes: list[Any],
+    items: list[Any],
+    dump_paths: list[Any],
+) -> bool:
+    """Log and return True if a removal-safety guard should abort this cycle."""
     if (
         previous_count >= REMOVAL_MIN_PREVIOUS_COUNT_FOR_DROP_GUARD
         and new_count < previous_count
@@ -217,7 +157,7 @@ def process_wishlist(wl: dict[str, Any]) -> None:
                 )
             logger.debug("Full removed items: %s", [vars(item) for item in removed])
             logger.debug("Full fetched items: %s", [vars(item) for item in items])
-            return
+            return True
 
     if len(removed) >= REMOVAL_THRESHOLD:
         logger.warning(
@@ -255,6 +195,118 @@ def process_wishlist(wl: dict[str, Any]) -> None:
             )
         logger.debug("Full removed items: %s", [vars(item) for item in removed])
         logger.debug("Full fetched items: %s", [vars(item) for item in items])
+        return True
+
+    return False
+
+
+def process_wishlist(wl: dict[str, Any]) -> None:
+    """Fetch, diff, and notify for a single wishlist config entry."""
+    platform = wl.get("platform", "").strip().lower()
+    name = wl.get("name", "").strip()
+    identifier = wl.get("identifier", "").strip()
+    enabled = wl.get("enabled", True)
+
+    if not platform or not name or not identifier:
+        logger.error(
+            "Invalid wishlist entry (missing platform/name/identifier): %s", wl
+        )
+        return
+
+    if not enabled:
+        logger.info("Wishlist '%s' (%s) is disabled; skipping.", name, platform)
+        return
+
+    fetcher = FETCHERS.get(platform)
+    if not fetcher:
+        logger.error(
+            "No fetcher registered for platform '%s'; skipping wishlist '%s'.",
+            platform,
+            name,
+        )
+        return
+
+    wishlist_id = identifier
+    logger.info(
+        "Processing wishlist: platform=%s, name=%s, identifier=%s",
+        platform,
+        name,
+        identifier,
+    )
+
+    previous_items = storage.get_previous_items(platform, wishlist_id)
+    previous_count = len(previous_items)
+
+    fetch_result = normalize_fetch_result(
+        fetcher(identifier, name, options=wl.get("options"))
+    )
+    items = fetch_result.items
+    dump_paths = fetch_result.dump_paths
+
+    if not fetch_result.complete:
+        logger.error(
+            "Incomplete fetch for %s '%s' (%s); skipping diff/save/notification. "
+            "reason=%s previous_count=%d fetched_count=%d dumps=%s run_id=%s cycle_id=%s",
+            platform,
+            name,
+            wishlist_id,
+            fetch_result.failure_reason or "<unknown>",
+            previous_count,
+            len(items),
+            [str(p) for p in dump_paths],
+            run_context.PROCESS_RUN_ID,
+            run_context.get_cycle_id(),
+        )
+        return
+
+    if not items and not fetch_result.allow_empty:
+        if previous_count > 0:
+            logger.error(
+                "Fetch returned zero items for %s:%s but previous count is %d; skipping diff.",
+                platform,
+                wishlist_id,
+                previous_count,
+            )
+        else:
+            logger.info(
+                "Fetch returned zero items for %s:%s and no previous items; skipping.",
+                platform,
+                wishlist_id,
+            )
+        return
+
+    if not items:
+        logger.info(
+            "Fetch returned zero items for %s:%s (allowed empty state); "
+            "continuing to diff against previous_count=%d.",
+            platform,
+            wishlist_id,
+            previous_count,
+        )
+
+    notify_settings = resolve_notification_settings(wl)
+    added, removed, price_changes = diff_items(
+        previous_items,
+        items,
+        price_notify_threshold_decrease=notify_settings.price_decrease_threshold_percent,
+        notify_on_availability_change=notify_settings.notify_availability,
+        notify_on_price_increase=notify_settings.notify_price_increase,
+        notify_on_price_decrease=notify_settings.notify_price_decrease,
+    )
+    new_count = len(items)
+
+    if _removal_guard_triggered(
+        platform,
+        name,
+        wishlist_id,
+        previous_count,
+        new_count,
+        added,
+        removed,
+        price_changes,
+        items,
+        dump_paths,
+    ):
         return
 
     readded_diagnostics = storage.find_readded_item_diagnostics(
@@ -296,14 +348,27 @@ def process_wishlist(wl: dict[str, Any]) -> None:
         logger.info("No changes for %s '%s' (%s).", platform, name, wishlist_id)
         return
 
+    notify_added = added if notify_settings.notify_added else []
+    notify_removed = removed if notify_settings.notify_removed else []
+
+    if not (notify_added or notify_removed or price_changes):
+        logger.info(
+            "Changes detected for %s '%s' (%s) but none are notification-worthy "
+            "per source policy; skipping email.",
+            platform,
+            name,
+            wishlist_id,
+        )
+        return
+
     subject = (
         f"[Wishlist Monitor] Changes detected on {platform.capitalize()} for {name}"
     )
     html_body = build_html_report(
         platform,
         name,
-        added,
-        removed,
+        notify_added,
+        notify_removed,
         price_changes,
         previous_count,
         new_count,
