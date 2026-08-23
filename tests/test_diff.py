@@ -136,3 +136,53 @@ def test_price_change_from_zero_uses_full_percentage() -> None:
     assert [(item.item_id, before, after) for item, before, after in price_changes] == [
         ("item", 0, 1)
     ]
+
+
+def test_decrease_threshold_override_allows_small_markdowns() -> None:
+    """A per-call decrease threshold of 0 surfaces markdowns below the global threshold."""
+    previous = {"item": _item("item", 10000)}
+    current = [_item("item", 9900)]  # 1% decrease, below the default 20% threshold
+
+    _, _, price_changes = diff_items(
+        previous, current, price_notify_threshold_decrease=0
+    )
+
+    assert [(item.item_id, before, after) for item, before, after in price_changes] == [
+        ("item", 10000, 9900)
+    ]
+
+
+def test_decrease_threshold_override_does_not_affect_increases() -> None:
+    """A decrease-only threshold override leaves increases on the base threshold."""
+    previous = {"item": _item("item", 10000)}
+    current = [_item("item", 10100)]  # 1% increase, below the default 20% threshold
+
+    _, _, price_changes = diff_items(
+        previous, current, price_notify_threshold_decrease=0
+    )
+
+    assert price_changes == []
+
+
+def test_notify_on_price_decrease_override_suppresses_decreases() -> None:
+    """notify_on_price_decrease=False suppresses decreases for a single call."""
+    previous = {"item": _item("item", 10000)}
+    current = [_item("item", 5000)]
+
+    _, _, price_changes = diff_items(previous, current, notify_on_price_decrease=False)
+
+    assert price_changes == []
+
+
+def test_notify_on_price_increase_override_does_not_touch_global_default() -> None:
+    """A per-call increase override doesn't leak into calls that don't pass it."""
+    previous = {"item": _item("item", 10000)}
+    current = [_item("item", 15000)]
+
+    _, _, suppressed = diff_items(previous, current, notify_on_price_increase=False)
+    _, _, default_call = diff_items(previous, current)
+
+    assert suppressed == []
+    assert [(item.item_id, before, after) for item, before, after in default_call] == [
+        ("item", 10000, 15000)
+    ]

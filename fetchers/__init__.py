@@ -2,9 +2,10 @@
 
 from typing import Any
 
-from . import amazon, throne
+from . import amazon, honeybirdette, throne
 
 FETCHERS: dict[str, Any] = {
     "amazon": amazon.fetch_items,
     "throne": throne.fetch_items,
+    "honeybirdette": honeybirdette.fetch_items,
 }

@@ -264,10 +264,60 @@ def test_ensure_db_adds_columns_to_legacy_schema(tmp_path: Path) -> None:
         with sqlite3.connect(storage.DB_PATH) as con:
             item_columns = {row[1] for row in con.execute("PRAGMA table_info(items)")}
             event_columns = {row[1] for row in con.execute("PRAGMA table_info(events)")}
+            observation_columns = {
+                row[1] for row in con.execute("PRAGMA table_info(item_observations)")
+            }
         assert "binding" in item_columns
+        assert "compare_at_price_cents" in item_columns
+        assert "compare_at_price_cents" in observation_columns
         assert {"run_id", "cycle_id"} <= event_columns
     finally:
         storage.DB_PATH = old_db_path
+
+
+def test_compare_at_price_cents_round_trips_through_storage(isolated_db: None) -> None:
+    """A saved item's compare-at price is persisted and returned by get_previous_items."""
+    on_sale = Item(
+        "sale-item",
+        "Sale Item",
+        price_cents=8700,
+        compare_at_price_cents=14500,
+    )
+    storage.save_items_and_events(
+        "honeybirdette",
+        "us",
+        [on_sale],
+        added=[on_sale],
+        removed=[],
+        price_changes=[],
+        run_id="run",
+        cycle_id="cycle",
+    )
+
+    previous = storage.get_previous_items("honeybirdette", "us")
+
+    assert previous["sale-item"].compare_at_price_cents == 14500
+
+
+def test_missing_compare_at_price_cents_defaults_to_negative_one(
+    isolated_db: None,
+) -> None:
+    """An item without a compare-at price stores/reloads as -1, not NULL."""
+    plain = _item("plain", 4500)
+    storage.save_items_and_events(
+        "amazon",
+        "wishlist",
+        [plain],
+        added=[plain],
+        removed=[],
+        price_changes=[],
+        run_id="run",
+        cycle_id="cycle",
+    )
+
+    previous = storage.get_previous_items("amazon", "wishlist")
+
+    assert previous["plain"].compare_at_price_cents == -1
 
 
 def test_get_previous_item_count_reports_rows(isolated_db: None) -> None:

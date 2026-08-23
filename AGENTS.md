@@ -6,9 +6,10 @@
 
 ## Project Overview
 
-A Python daemon that polls Amazon and Throne wishlists on a configurable schedule,
-diffs items against a local SQLite database, and sends HTML email notifications for
-additions, removals, and price changes.
+A Python daemon that polls Amazon and Throne wishlists, and Honey Birdette's live
+US storefront for markdowns in configured categories/sizes, on a configurable
+schedule. It diffs items against a local SQLite database and sends HTML email
+notifications for additions, removals, and price changes.
 
 ## Language & Runtime
 
@@ -30,6 +31,8 @@ core/
 fetchers/
   amazon.py         — mobile HTML scraper with pagination + CAPTCHA handling
   throne.py         — three-strategy extractor: NEXT_DATA → JSON-LD → grid scan
+  honeybirdette.py  — Shopify /products.json catalog scan with category/size
+                       markdown matching
 templates/
   email_dark.html   — dark-mode email template
   email_light.html  — light-mode email template
@@ -91,6 +94,10 @@ Ruff uses its defaults (line length 88).
 | `PRICE_NOTIFY_THRESHOLD` | `20` | Percent price change required before notifying |
 | `NOTIFY_ON_AVAILABILITY_CHANGE` | `true` | Notify when an item becomes unavailable or returns to availability |
 | `NOTIFY_ON_PRICE_INCREASE` | `true` | Notify when a price increases (decreases always notify) |
+| `HONEYBIRDETTE_MAX_PAGES` | `20` | Max `/products.json` pages fetched per Honey Birdette poll |
+| `HONEYBIRDETTE_MIN_PRODUCTS` | `50` | Below this catalog size, the fetch fails closed (incomplete) |
+| `HONEYBIRDETTE_PAGE_SLEEP_SECONDS` | `1` | Delay between successive catalog page fetches |
+| `HONEYBIRDETTE_USER_AGENT` | Chrome-like UA string | User-Agent sent to the Honey Birdette storefront |
 
 ## Config File Format (`config.json`)
 
@@ -109,15 +116,81 @@ Ruff uses its defaults (line length 88).
       "platform": "throne",
       "name": "Someone",
       "identifier": "username"
+    },
+    {
+      "platform": "honeybirdette",
+      "name": "Honey Birdette Sale Watch",
+      "identifier": "us",
+      "poll_minutes": 360,
+      "options": {
+        "sale_only": true,
+        "matches": [
+          {"type": "bra", "band": "34", "cup": "C"},
+          {"type": "thong", "size": "M"},
+          {"type": "sheers", "size": "M"}
+        ]
+      },
+      "notifications": {
+        "added": true,
+        "removed": false,
+        "price_decrease": true,
+        "price_increase": false,
+        "availability": true,
+        "price_decrease_threshold_percent": 0
+      }
     }
   ]
 }
 ```
 
+### Honey Birdette (`platform: "honeybirdette"`)
+
+- `identifier`: a base storefront URL/domain (e.g. `"us.honeybirdette.com"`), or any
+  other value (e.g. `"us"`) to use the default `https://us.honeybirdette.com`.
+- `options.matches`: an array of category/size rules to watch. Each entry has a
+  `type` of `"bra"`, `"thong"`, `"sheers"`, `"stockings"`, or `"hosiery"`
+  (sheers/stockings/hosiery are all the same underlying storefront category).
+  Bra entries require `band` and `cup` (e.g. `"34"` / `"C"`); all other types
+  require `size` (e.g. `"M"`). Size/band values are matched case- and
+  whitespace-insensitively; cup values additionally treat `-` and `/` as
+  interchangeable separators (`"DD-E"` == `"DD/E"`).
+- `options.sale_only` (default `true`): when true, only variants with a live
+  markdown (`compare_at_price > price`) are tracked — full-price matches are
+  ignored entirely. Set to `false` to track matching variants regardless of
+  sale state.
+- The fetcher discovers the entire live catalog via the storefront's public
+  `/products.json` endpoint (there is no dependable sale-collection URL) and
+  determines markdown state per-variant from `compare_at_price`. It never
+  relies on search-engine results, which can surface stale products/pricing.
+- Zero current matches is a normal state (no live sale in the configured
+  sizes right now), not a scrape failure — the fetcher reports this via
+  `FetchResult.allow_empty` so a sale ending is still recorded as a removal.
+
+### Per-wishlist notification policy (`notifications`)
+
+Any wishlist entry (not just Honey Birdette) may include a `notifications`
+object to override which change types produce an email for that source,
+without touching the global `NOTIFY_ON_*`/`PRICE_NOTIFY_THRESHOLD` env
+defaults used elsewhere:
+
+| Key | Default | Effect |
+|-----|---------|--------|
+| `added` | `true` | Include newly discovered items in the email |
+| `removed` | `true` | Include items no longer present in the email |
+| `price_decrease` | `true` | Include price decreases |
+| `price_increase` | global `NOTIFY_ON_PRICE_INCREASE` | Include price increases |
+| `availability` | global `NOTIFY_ON_AVAILABILITY_CHANGE` | Include availability-only flips |
+| `price_decrease_threshold_percent` | global `PRICE_NOTIFY_THRESHOLD` | Percent decrease required to notify (increases still use the global threshold) |
+
+`added`/`removed` are still saved to the database either way (so history and
+readded-item diagnostics stay accurate); the toggles only affect what's
+included in the notification email itself.
+
 ## Adding a New Platform
 
-1. Create `fetchers/<platform>.py` with a `fetch_items(identifier, wishlist_name)` function
-   returning `tuple[list[Item], list[str]]`.
+1. Create `fetchers/<platform>.py` with a
+   `fetch_items(identifier, wishlist_name, options=None)` function
+   returning a `core.models.FetchResult`.
 2. Register it in `fetchers/__init__.py` under `FETCHERS`.
 3. Add a `_wishlist_url()` branch in `monitor.py` if applicable.
 4. Ensure `make lintfix && make lint && make test` passes before committing.

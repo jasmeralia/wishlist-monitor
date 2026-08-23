@@ -12,6 +12,24 @@
       "identifier": "rinusername",
       "poll_minutes": 180,
       "recipients": ["you@example.com", "rin@example.com"]
+    },
+    {
+      "platform": "honeybirdette",
+      "name": "Honey Birdette Sale Watch",
+      "identifier": "us",
+      "poll_minutes": 360,
+      "options": {
+        "sale_only": true,
+        "matches": [
+          {"type": "bra", "band": "34", "cup": "C"},
+          {"type": "thong", "size": "M"},
+          {"type": "sheers", "size": "M"}
+        ]
+      },
+      "notifications": {
+        "removed": false,
+        "price_increase": false
+      }
     }
   ]
 }

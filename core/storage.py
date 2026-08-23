@@ -118,6 +118,10 @@ def ensure_db() -> None:
         _ensure_column(cur, "events", "run_id", "TEXT")
         _ensure_column(cur, "events", "cycle_id", "TEXT")
         _ensure_column(cur, "items", "binding", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(
+            cur, "items", "compare_at_price_cents", "INTEGER NOT NULL DEFAULT -1"
+        )
+        _ensure_column(cur, "item_observations", "compare_at_price_cents", "INTEGER")
         con.commit()
 
 
@@ -136,7 +140,8 @@ def get_previous_items(platform: str, wishlist_id: str) -> dict[str, Item]:
         cur = con.cursor()
         cur.execute(
             """
-            SELECT item_id, name, price_cents, currency, product_url, image_url, available, binding
+            SELECT item_id, name, price_cents, currency, product_url, image_url,
+                   available, binding, compare_at_price_cents
             FROM items
             WHERE platform=? AND wishlist_id=?
         """,
@@ -155,6 +160,7 @@ def get_previous_items(platform: str, wishlist_id: str) -> dict[str, Item]:
             image_url,
             available,
             binding,
+            compare_at_price_cents,
         ) = row
         out[item_id] = Item(
             item_id=item_id,
@@ -165,6 +171,9 @@ def get_previous_items(platform: str, wishlist_id: str) -> dict[str, Item]:
             image_url=image_url or "",
             available=bool(available),
             binding=binding or "",
+            compare_at_price_cents=(
+                compare_at_price_cents if compare_at_price_cents is not None else -1
+            ),
         )
     return out
 
@@ -265,9 +274,10 @@ def save_items_and_events(
                 """
                 INSERT INTO items (
                     platform, wishlist_id, item_id, name, price_cents, currency,
-                    product_url, image_url, available, first_seen, last_seen, binding
+                    product_url, image_url, available, first_seen, last_seen, binding,
+                    compare_at_price_cents
                 )
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(platform, wishlist_id, item_id) DO UPDATE SET
                     name=excluded.name,
                     price_cents=excluded.price_cents,
@@ -276,7 +286,8 @@ def save_items_and_events(
                     image_url=excluded.image_url,
                     available=excluded.available,
                     last_seen=excluded.last_seen,
-                    binding=excluded.binding
+                    binding=excluded.binding,
+                    compare_at_price_cents=excluded.compare_at_price_cents
             """,
                 (
                     platform,
@@ -291,6 +302,7 @@ def save_items_and_events(
                     ts,
                     ts,
                     it.binding,
+                    it.compare_at_price_cents,
                 ),
             )
 
@@ -300,9 +312,9 @@ def save_items_and_events(
             INSERT INTO item_observations (
                 observed_at, platform, wishlist_id, item_id, name,
                 price_cents, currency, available, present, product_url,
-                image_url, binding, run_id, cycle_id
+                image_url, binding, run_id, cycle_id, compare_at_price_cents
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             [
                 (
@@ -320,6 +332,7 @@ def save_items_and_events(
                     it.binding,
                     event_run_id,
                     event_cycle_id,
+                    it.compare_at_price_cents,
                 )
                 for it in new_items
             ],
@@ -331,9 +344,9 @@ def save_items_and_events(
             INSERT INTO item_observations (
                 observed_at, platform, wishlist_id, item_id, name,
                 price_cents, currency, available, present, product_url,
-                image_url, binding, run_id, cycle_id
+                image_url, binding, run_id, cycle_id, compare_at_price_cents
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             [
                 (
@@ -351,6 +364,7 @@ def save_items_and_events(
                     it.binding,
                     event_run_id,
                     event_cycle_id,
+                    None,
                 )
                 for it in removed
             ],

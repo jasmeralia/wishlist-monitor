@@ -32,6 +32,11 @@ def _wishlist(**overrides: object) -> dict[str, object]:
     return result
 
 
+def test_fetchers_registry_includes_all_platforms() -> None:
+    """Amazon, Throne, and Honey Birdette are all registered fetchers."""
+    assert set(monitor.FETCHERS) >= {"amazon", "throne", "honeybirdette"}
+
+
 @pytest.mark.parametrize(
     "wishlist",
     (
@@ -65,7 +70,7 @@ def test_process_wishlist_skips_empty_initial_fetch(
     monkeypatch.setitem(
         monitor.FETCHERS,
         "fake",
-        lambda _identifier, _name: FetchResult([], [], complete=True),
+        lambda _identifier, _name, **_kwargs: FetchResult([], [], complete=True),
     )
     monkeypatch.setattr(monitor.storage, "get_previous_items", lambda *_args: {})
     save = mock.Mock()
@@ -74,6 +79,67 @@ def test_process_wishlist_skips_empty_initial_fetch(
     monitor.process_wishlist(_wishlist())
 
     save.assert_not_called()
+
+
+def test_process_wishlist_allow_empty_records_removal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A complete-but-empty allow_empty fetch still diffs and records the removal."""
+    gone = Item("gone", "Gone", 8700)
+    monkeypatch.setitem(
+        monitor.FETCHERS,
+        "fake",
+        lambda _identifier, _name, **_kwargs: FetchResult(
+            [], [], complete=True, allow_empty=True
+        ),
+    )
+    monkeypatch.setattr(
+        monitor.storage, "get_previous_items", lambda *_args: {"gone": gone}
+    )
+    monkeypatch.setattr(
+        monitor.storage, "find_readded_item_diagnostics", lambda *_args, **_kwargs: []
+    )
+    save = mock.Mock()
+    monkeypatch.setattr(monitor.storage, "save_items_and_events", save)
+    monkeypatch.setattr(monitor, "build_html_report", lambda *_args, **_kwargs: "html")
+    monkeypatch.setattr(monitor, "send_email", mock.Mock())
+
+    monitor.process_wishlist(_wishlist())
+
+    save_args = save.call_args.args
+    assert [item.item_id for item in save_args[4]] == ["gone"]
+
+
+def test_process_wishlist_suppresses_notification_per_source_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A "removed": false policy still saves the removal but skips the email."""
+    gone = Item("gone", "Gone", 8700)
+    monkeypatch.setitem(
+        monitor.FETCHERS,
+        "fake",
+        lambda _identifier, _name, **_kwargs: FetchResult(
+            [], [], complete=True, allow_empty=True
+        ),
+    )
+    monkeypatch.setattr(
+        monitor.storage, "get_previous_items", lambda *_args: {"gone": gone}
+    )
+    monkeypatch.setattr(
+        monitor.storage, "find_readded_item_diagnostics", lambda *_args, **_kwargs: []
+    )
+    save = mock.Mock()
+    report = mock.Mock()
+    send = mock.Mock()
+    monkeypatch.setattr(monitor.storage, "save_items_and_events", save)
+    monkeypatch.setattr(monitor, "build_html_report", report)
+    monkeypatch.setattr(monitor, "send_email", send)
+
+    monitor.process_wishlist(_wishlist(notifications={"removed": False}))
+
+    save.assert_called_once()
+    report.assert_not_called()
+    send.assert_not_called()
 
 
 def test_process_wishlist_persists_changes_and_sends_report(
@@ -103,7 +169,7 @@ def test_process_wishlist_persists_changes_and_sends_report(
 
     monitor.process_wishlist(_wishlist())
 
-    fetcher.assert_called_once_with("list-id", "Test List")
+    fetcher.assert_called_once_with("list-id", "Test List", options=None)
     save_args = save.call_args.args
     assert save_args[:3] == ("fake", "list-id", current)
     assert [item.item_id for item in save_args[3]] == ["added"]
@@ -130,7 +196,7 @@ def test_process_wishlist_persists_unchanged_items_without_email(
     monkeypatch.setitem(
         monitor.FETCHERS,
         "fake",
-        lambda _identifier, _name: FetchResult([item], []),
+        lambda _identifier, _name, **_kwargs: FetchResult([item], []),
     )
     monkeypatch.setattr(
         monitor.storage, "get_previous_items", lambda *_args: {"same": item}
@@ -157,7 +223,7 @@ def test_process_wishlist_logs_missing_recipients_without_sending(
     monkeypatch.setitem(
         monitor.FETCHERS,
         "fake",
-        lambda _identifier, _name: FetchResult([item], []),
+        lambda _identifier, _name, **_kwargs: FetchResult([item], []),
     )
     monkeypatch.setattr(monitor.storage, "get_previous_items", lambda *_args: {})
     monkeypatch.setattr(

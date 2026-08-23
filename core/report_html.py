@@ -25,6 +25,23 @@ def _cents_to_str(cents: int | None, currency: str = "USD") -> str:
     return f"{sym}{cents / 100:.2f}"
 
 
+def _price_display(item: Item) -> str:
+    """Render an item's price, appending compare-at/percent-off when known."""
+    price_str = _cents_to_str(item.price_cents, item.currency)
+    compare_at = item.compare_at_price_cents
+    if (
+        compare_at is not None
+        and compare_at > 0
+        and item.price_cents is not None
+        and item.price_cents > 0
+        and compare_at > item.price_cents
+    ):
+        was_str = _cents_to_str(compare_at, item.currency)
+        pct_off = (compare_at - item.price_cents) * 100 / compare_at
+        return f"{price_str} (was {was_str}, {pct_off:.0f}% off)"
+    return price_str
+
+
 def build_html_report(
     platform: str,
     wishlist_name: str,
@@ -44,7 +61,7 @@ def build_html_report(
     added_data = [
         {
             "name": it.name,
-            "price_str": _cents_to_str(it.price_cents, it.currency),
+            "price_str": _price_display(it),
             "image_url": it.image_url,
             "product_url": it.product_url,
             "binding": it.binding,
@@ -66,7 +83,7 @@ def build_html_report(
     price_change_data = []
     for it, before, after in price_changes:
         before_str = _cents_to_str(before, it.currency)
-        after_str = _cents_to_str(after, it.currency)
+        after_str = _price_display(it)
         pct_str = ""
         color = "#BDC1C6"
         if before and before > 0 and after and after > 0 and after != before:

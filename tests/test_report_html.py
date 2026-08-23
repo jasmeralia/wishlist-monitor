@@ -31,6 +31,28 @@ def test_cents_to_str_formats_prices(
     assert report_html._cents_to_str(cents, currency) == expected
 
 
+@pytest.mark.parametrize(
+    ("price_cents", "compare_at_price_cents", "expected"),
+    (
+        (8700, 14500, "$87.00 (was $145.00, 40% off)"),
+        (8700, -1, "$87.00"),
+        (8700, 8700, "$87.00"),
+        (-1, 14500, "Unavailable"),
+    ),
+)
+def test_price_display_includes_compare_at_when_it_is_a_real_markdown(
+    price_cents: int, compare_at_price_cents: int, expected: str
+) -> None:
+    """Compare-at pricing only renders when it represents a genuine markdown."""
+    item = Item(
+        "item",
+        "Item",
+        price_cents,
+        compare_at_price_cents=compare_at_price_cents,
+    )
+    assert report_html._price_display(item) == expected
+
+
 def test_build_html_report_renders_all_change_sections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -88,7 +88,7 @@ def test_incomplete_fetch_skips_diff_and_persistence(monitor_state: None) -> Non
 
     _run_with_fetcher(
         "fake",
-        lambda _identifier, _name: FetchResult(
+        lambda _identifier, _name, **_kwargs: FetchResult(
             items=[_item("a")],
             dump_paths=["partial.html"],
             complete=False,
@@ -127,7 +127,7 @@ def test_complete_fetch_persists_legitimate_removal(monitor_state: None) -> None
     with mock.patch.object(monitor, "send_email"):
         _run_with_fetcher(
             "fake",
-            lambda _identifier, _name: FetchResult(
+            lambda _identifier, _name, **_kwargs: FetchResult(
                 items=[_item("a"), _item("b")],
                 dump_paths=[],
                 complete=True,
@@ -150,7 +150,7 @@ def test_relative_drop_guard_skips_suspicious_complete_fetch(
 
     _run_with_fetcher(
         "fake",
-        lambda _identifier, _name: FetchResult(
+        lambda _identifier, _name, **_kwargs: FetchResult(
             items=[_item(str(i)) for i in range(43)],
             dump_paths=[],
             complete=True,
@@ -171,7 +171,7 @@ def test_zero_item_fetch_with_prior_state_preserves_rows(
 
     _run_with_fetcher(
         "fake",
-        lambda _identifier, _name: FetchResult(
+        lambda _identifier, _name, **_kwargs: FetchResult(
             items=[],
             dump_paths=[],
             complete=True,
@@ -191,7 +191,7 @@ def test_absolute_removal_threshold_preserves_rows(monitor_state: None) -> None:
 
     _run_with_fetcher(
         "fake",
-        lambda _identifier, _name: FetchResult(
+        lambda _identifier, _name, **_kwargs: FetchResult(
             items=[_item("0")],
             dump_paths=[],
             complete=True,

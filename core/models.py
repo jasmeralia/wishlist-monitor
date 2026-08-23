@@ -19,6 +19,8 @@ class Item:  # pylint: disable=too-many-instance-attributes
     image_url: str = ""
     available: bool = True
     binding: str = ""
+    # Original/list price in cents when the platform exposes one; -1 if unknown.
+    compare_at_price_cents: int = -1
 
 
 @dataclass
@@ -34,3 +36,8 @@ class FetchResult:
     dump_paths: list[Path | str]
     complete: bool = True
     failure_reason: str | None = None
+    # True when a *complete* fetch legitimately produced zero items (e.g. a
+    # sale-only monitor with no current matches), as opposed to zero items
+    # meaning a scrape/parse problem. Lets the monitor process an empty
+    # snapshot (including recording removals) instead of skipping the cycle.
+    allow_empty: bool = False

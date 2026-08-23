@@ -334,8 +334,16 @@ def _extract_items_grid(html: str) -> list[Item] | None:
     return list(uniq.values())
 
 
-def fetch_items(identifier: str, wishlist_name: str | None = None) -> FetchResult:
-    """Fetch items from a Throne wishlist (by username or URL)."""
+def fetch_items(
+    identifier: str,
+    wishlist_name: str | None = None,
+    options: dict[str, Any] | None = None,  # pylint: disable=unused-argument
+) -> FetchResult:
+    """Fetch items from a Throne wishlist (by username or URL).
+
+    `options` is accepted for interface compatibility with fetchers that use
+    source-specific config (e.g. Honey Birdette) and is ignored here.
+    """
     url = _normalize_target(identifier)
     logger.info("Checking Throne wishlist '%s' at %s", wishlist_name or identifier, url)
 
