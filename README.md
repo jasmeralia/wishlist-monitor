@@ -92,6 +92,8 @@ This allows you to:
 ```text
 wishlist-monitor/
   monitor.py
+  wishlist_monitor/
+    __main__.py
   core/
     logger.py
     models.py
@@ -468,6 +470,31 @@ To automatically fix issues:
 ```bash
 ruff check --fix .
 ```
+
+---
+
+## TrueNAS Deployment (native cron)
+
+Production on `truenas.windsofstorm.net` runs via the shared `truenas-cron` wrapper
+(Odoo #467), not as a permanently-resident Docker container. Data lives at
+`/mnt/myzmirror/wishlist-monitor/` (config, SQLite DB, logs, `.env`).
+
+```bash
+/mnt/myzmirror/truenas-cron/bin/truenas-cron run --mode uv \
+  --app jasmeralia/wishlist-monitor:master -- \
+  env MODE=once uv run python -m wishlist_monitor
+```
+
+Schedule: `7 */3 * * *` (every 3 hours at :07). The wrapper handles git fetch/checkout,
+`uv sync`, skip-file gating, jitter, and JSON-lines logging to
+`/mnt/myzmirror/truenas-cron/logs/jasmeralia/wishlist-monitor.log`.
+
+Copy `.env.native-cron.example` to `/mnt/myzmirror/wishlist-monitor/.env` and set
+host `/mnt/...` paths (not container `/data/...`). See `AGENTS.md` for full cutover
+notes.
+
+`docker-compose.yml` is kept for alternate/local Docker runs until the Compose app
+is decommissioned.
 
 ---
 
