@@ -15,12 +15,14 @@ notifications for additions, removals, and price changes.
 
 - Python 3.10+
 - Virtual environment at `.venv/` — activate with `. .venv/bin/activate`
-- Dependencies: `requirements.txt` (runtime), `requirements-dev.txt` (lint + type checking)
+- Dependencies: `requirements.txt` (Docker image), `pyproject.toml` + `uv.lock` (native
+  TrueNAS cron via `uv sync`); keep runtime deps in sync across both
 
 ## Architecture
 
 ```
 monitor.py          — entry point; daemon loop or single run (MODE=once|daemon)
+wishlist_monitor/   — `python -m wishlist_monitor` entry (native cron)
 core/
   models.py         — Item dataclass (shared across all fetchers)
   diff.py           — diff_items(): added / removed / price_changed logic
@@ -204,7 +206,43 @@ included in the notification email itself.
 
 ## Deployment
 
-Production runs on the TrueNAS SCALE host `truenas.windsofstorm.net` as the Compose-YAML app `wishlist-monitor`. After every merged PR, once the `Build and Publish Docker image to GHCR` workflow succeeds and tags a new release (e.g. `v1.2.17`), deploy it using the `truenas-app` wrapper:
+Production runs on the TrueNAS SCALE host `truenas.windsofstorm.net`. As of Odoo
+#467 (epic #466), the primary deployment is a **native TrueNAS cron job** via the
+shared `truenas-cron` wrapper — not the Compose YAML app. The Docker image remains
+published for other environments and until the Compose app is decommissioned.
+
+### Native cron (production)
+
+Data, config, and secrets live on the pool at `/mnt/myzmirror/wishlist-monitor/`
+(same paths the Compose app used on the host side). The wrapper auto-sources
+`/mnt/myzmirror/wishlist-monitor/.env` when present — use `.env.native-cron.example`
+as a template; **paths must be host `/mnt/...` values, not container `/data/...`**.
+
+Cron entry (via `midclt cronjob.create`, user `morgan`, schedule `7 */3 * * *`):
+
+```bash
+/mnt/myzmirror/truenas-cron/bin/truenas-cron run --mode uv \
+  --app jasmeralia/wishlist-monitor:master -- \
+  env MODE=once uv run python -m wishlist_monitor
+```
+
+- Skip file: `/mnt/myzmirror/truenas-cron/skips/jasmeralia/wishlist-monitor.skip`
+- Wrapper JSON-lines log: `/mnt/myzmirror/truenas-cron/logs/jasmeralia/wishlist-monitor.log`
+  (ingested to OpenSearch `native-cron-logs` by the shared fluent-bit pipeline in
+  [cam-watcher-tools](https://github.com/jasmeralia/cam-watcher-tools))
+- `pyproject.toml` + `uv.lock` supply dependencies for `uv sync` in the git checkout
+  under `/mnt/myzmirror/truenas-cron/git/jasmeralia/wishlist-monitor/`
+- `storage.py` persists state to `DB_PATH` (SQLite on the dataset); state survives
+  between cron invocations
+
+See `~/git/truenas/AGENTS.md` for `truenas-cron` wrapper details and cron management.
+
+### Docker Compose (legacy / alternate)
+
+The Compose YAML app `wishlist-monitor` may still run until cutover is complete.
+After every merged PR that touches the Docker image, once the `Build and Publish
+Docker image to GHCR` workflow succeeds and tags a new release (e.g. `v1.2.17`),
+deploy it using the `truenas-app` wrapper:
 
 1. Fetch tags locally to discover the new version:
    ```bash
