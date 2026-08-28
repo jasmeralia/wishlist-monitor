@@ -235,7 +235,7 @@ Cron entry (via `midclt cronjob.create`, user `morgan`, schedule `7 */3 * * *`):
 - `storage.py` persists state to `DB_PATH` (SQLite on the dataset); state survives
   between cron invocations
 
-See `~/git/truenas/AGENTS.md` for `truenas-cron` wrapper details and cron management.
+See `~/git/truenas-typhoon/AGENTS.md` for `truenas-cron` wrapper details and cron management.
 
 ### Docker Compose (legacy / alternate)
 
@@ -267,7 +267,7 @@ deploy it using the `truenas-app` wrapper:
    The two digests must match. Only then confirm the post-update state and mark the task complete.
 4. Confirm the post-update JSON reports `"state": "RUNNING"` and `ghcr.io/jasmeralia/wishlist-monitor:latest` in `images`.
 
-Refer to `~/git/truenas/AGENTS.md` for general TrueNAS stack-management rules (classification, safety, raw `midclt` usage).
+Refer to `~/git/truenas-typhoon/AGENTS.md` for general TrueNAS stack-management rules (classification, safety, raw `midclt` usage).
 
 ## Docker
 
