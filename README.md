@@ -213,17 +213,24 @@ search-engine result.
     "matches": [
       {"type": "bra", "band": "34", "cup": "C"},
       {"type": "thong", "size": "M"},
-      {"type": "sheers", "size": "M"}
+      {"type": "sheers", "size": "M"},
+      {"type": "accessory"}
     ]
   }
 }
 ```
 
 - `options.matches`: a list of category/size rules. `type` is one of `"bra"`,
-  `"thong"`, `"sheers"`, `"stockings"`, or `"hosiery"` (sheers/stockings/hosiery
-  all map to the same storefront category). Bra entries need `band` + `cup`;
-  everything else needs `size`. Matching is case- and whitespace-insensitive,
-  and cup values treat `-`/`/` interchangeably (`"DD-E"` matches `"DD/E"`).
+  `"thong"`, `"sheers"`, `"stockings"`, `"hosiery"`, or `"accessory"`
+  (sheers/stockings/hosiery all map to the same storefront category). Bra
+  entries need `band` + `cup`; sized entries need `size`. An `"accessory"`
+  entry has no size field and matches one-size products from the Accessories
+  category, including products explicitly labeled `One Size`; other sized
+  accessories such as gloves are excluded. Matching is
+  case- and whitespace-insensitive, and cup values treat `-`/`/`
+  interchangeably (`"DD-E"` matches `"DD/E"`).
+- Honey Birdette item names include the merchandising colour from the product's
+  `colour:` tag when that colour is not already named in the product title.
 - `options.sale_only` (default `true`): only markdown variants are tracked.
   Set `false` to track matching variants at any price.
 - A variant that's on sale but currently out of stock is kept in the snapshot
