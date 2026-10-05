@@ -33,8 +33,7 @@ def _price_display(item: Item) -> str:
         compare_at is not None
         and compare_at > 0
         and item.price_cents is not None
-        and item.price_cents > 0
-        and compare_at > item.price_cents
+        and compare_at > item.price_cents > 0
     ):
         was_str = _cents_to_str(compare_at, item.currency)
         pct_off = (compare_at - item.price_cents) * 100 / compare_at
