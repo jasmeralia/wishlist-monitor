@@ -276,11 +276,13 @@ def _colour_tag(product: dict[str, Any]) -> str | None:
     """
     tags = product.get("tags")
     if isinstance(tags, str):
-        tags = [tag.strip() for tag in tags.split(",")]
-    elif not isinstance(tags, list):
+        tag_values = tags.split(",")
+    elif isinstance(tags, list):
+        tag_values = tags
+    else:
         return None
-    for tag in tags:
-        if isinstance(tag, str) and tag.lower().startswith("colour:"):
+    for tag in tag_values:
+        if isinstance(tag, str) and tag.strip().lower().startswith("colour:"):
             value = tag.split(":", 1)[1].strip()
             return value or None
     return None
@@ -339,17 +341,21 @@ def _single_size_binding(
     return size_val.strip()
 
 
-def _accessory_binding(options: list[Any]) -> str | None:
+def _accessory_binding(options: list[Any], variant: dict[str, Any]) -> str | None:
     """
     Match one-size Accessories items only (e.g. pasties, garters, chokers).
 
-    Sized accessories (gloves, cami sets, etc.) expose a "Size" option and are
-    intentionally excluded here; a config entry using a sized category (or a
-    dedicated size-bearing rule) is the way to track those.
+    Sized accessories (gloves, cami sets, etc.) are excluded. Some one-size
+    products explicitly expose a "Size" option with the value "One Size";
+    those still match this rule.
     """
-    if _option_index(options, "size") is not None:
+    size_idx = _option_index(options, "size")
+    if size_idx is None:
+        return "One Size"
+    size_val = _variant_option_value(variant, size_idx)
+    if size_val is None or _normalize_token(size_val) != "ONE SIZE":
         return None
-    return "One Size"
+    return size_val.strip()
 
 
 def _variant_binding_for_rule(
@@ -362,7 +368,7 @@ def _variant_binding_for_rule(
     if rule.category == "bra":
         return _bra_binding(options, variant, rule)
     if rule.category == "accessory":
-        return _accessory_binding(options)
+        return _accessory_binding(options, variant)
     return _single_size_binding(options, variant, rule)
 
 

@@ -225,7 +225,8 @@ search-engine result.
   (sheers/stockings/hosiery all map to the same storefront category). Bra
   entries need `band` + `cup`; sized entries need `size`. An `"accessory"`
   entry has no size field and matches one-size products from the Accessories
-  category; sized accessories such as gloves are excluded. Matching is
+  category, including products explicitly labeled `One Size`; other sized
+  accessories such as gloves are excluded. Matching is
   case- and whitespace-insensitive, and cup values treat `-`/`/`
   interchangeably (`"DD-E"` matches `"DD/E"`).
 - Honey Birdette item names include the merchandising colour from the product's

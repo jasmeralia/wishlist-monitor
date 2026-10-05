@@ -155,9 +155,10 @@ Ruff uses its defaults (line length 88).
   storefront category). Bra entries require `band` and `cup` (e.g. `"34"` /
   `"C"`); thong, sheers, stockings, and hosiery entries require `size` (e.g.
   `"M"`). Accessory entries have no size field and match one-size products in
-  the Accessories category; sized accessories are excluded. Size/band values
-  are matched case- and whitespace-insensitively; cup values additionally treat
-  `-` and `/` as interchangeable separators (`"DD-E"` == `"DD/E"`).
+  the Accessories category, including products explicitly labeled `One Size`;
+  other sized accessories are excluded. Size/band values are matched case- and
+  whitespace-insensitively; cup values additionally treat `-` and `/` as
+  interchangeable separators (`"DD-E"` == `"DD/E"`).
 - Product colours from Honey Birdette's `colour:` tags are appended to item
   names when the colour is not already present in the product title.
 - `options.sale_only` (default `true`): when true, only variants with a live

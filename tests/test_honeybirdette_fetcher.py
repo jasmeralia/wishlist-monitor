@@ -104,7 +104,7 @@ def _accessory_product(
     price: str = "18.00",
     compare_at: str | None = "60.00",
     available: bool = True,
-    tags: list[str] | None = None,
+    tags: list[str] | str | None = None,
 ) -> dict[str, Any]:
     return {
         "id": 5,
@@ -492,6 +492,25 @@ def test_fetch_items_excludes_sized_accessory(
     assert result.items == []
 
 
+def test_fetch_items_matches_explicit_one_size_accessory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An accessory whose Size option says One Size is still a one-size match."""
+    product = _accessory_product()
+    product["options"] = [{"name": "Size", "values": ["One Size"]}]
+    product["variants"][0]["option1"] = "One Size"
+    products = [product]
+    monkeypatch.setattr(honeybirdette, "_fetch_page", _single_page_fetcher(products))
+
+    result = honeybirdette.fetch_items(
+        "us", "HB Test", {"matches": [{"type": "accessory"}]}
+    )
+
+    assert result.complete
+    assert len(result.items) == 1
+    assert result.items[0].binding == "One Size"
+
+
 def test_fetch_items_appends_colour_tag_when_missing_from_title(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -550,6 +569,23 @@ def test_fetch_items_handles_missing_colour_tag(
 
     assert len(result.items) == 1
     assert result.items[0].name == "4Play Card Game"
+
+
+def test_fetch_items_reads_colour_from_comma_separated_tag_string(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shopify's REST product payload can provide tags as a comma-separated string."""
+    products = [
+        _accessory_product(title="Lily Bra", tags="New Arrivals, colour:pink, Sale"),
+    ]
+    monkeypatch.setattr(honeybirdette, "_fetch_page", _single_page_fetcher(products))
+
+    result = honeybirdette.fetch_items(
+        "us", "HB Test", {"matches": [{"type": "accessory"}]}
+    )
+
+    assert len(result.items) == 1
+    assert result.items[0].name == "Lily Bra (Pink)"
 
 
 def test_fetch_items_paginates_until_a_short_page(
