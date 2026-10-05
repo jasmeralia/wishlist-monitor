@@ -54,7 +54,13 @@ CATEGORY_PRODUCT_TYPES: dict[str, set[str]] = {
     "sheers": {"hosiery"},
     "stockings": {"hosiery"},
     "hosiery": {"hosiery"},
+    "accessory": {"accessories"},
 }
+
+# Match types that require no band/cup/size qualifier: "accessory" matches
+# one-size items only (see _accessory_binding), so there's nothing to
+# configure beyond the type itself.
+SIZELESS_CATEGORIES: frozenset[str] = frozenset({"accessory"})
 
 
 @dataclass
@@ -128,6 +134,8 @@ def _parse_matches(options: dict[str, Any] | None) -> list[MatchRule]:
             rules.append(
                 MatchRule(category=match_type, band=band.strip(), cup=cup.strip())
             )
+        elif match_type in SIZELESS_CATEGORIES:
+            rules.append(MatchRule(category=match_type))
         else:
             size = entry.get("size")
             if not isinstance(size, str) or not size.strip():
@@ -254,6 +262,40 @@ def _product_image_url(product: dict[str, Any], variant: dict[str, Any]) -> str:
     return ""
 
 
+_COLOUR_WORD_RE = re.compile(r"[\s/-]+")
+
+
+def _colour_tag(product: dict[str, Any]) -> str | None:
+    """
+    Return the merchandising colour (e.g. "pink") from a `colour:<value>` tag.
+
+    Honey Birdette tags every colourway internally (used to drive the site's
+    own colour-swatch UI) but frequently omits colour from the product
+    title itself (e.g. "Lily Bra" is a single pink colourway with no colour
+    word in its title). The tag is the only reliable source for that.
+    """
+    tags = product.get("tags")
+    if not isinstance(tags, list):
+        return None
+    for tag in tags:
+        if isinstance(tag, str) and tag.lower().startswith("colour:"):
+            value = tag.split(":", 1)[1].strip()
+            return value or None
+    return None
+
+
+def _display_name(product: dict[str, Any], title: str) -> str:
+    """Append the merchandising colour to *title* when it isn't already named."""
+    colour = _colour_tag(product)
+    if not colour:
+        return title
+    words = [w for w in _COLOUR_WORD_RE.split(colour.lower()) if len(w) > 2]
+    title_words = set(re.findall(r"[a-z0-9]+", title.lower()))
+    if words and all(word in title_words for word in words):
+        return title
+    return f"{title} ({colour.title()})"
+
+
 def _parse_price_cents(raw: Any) -> int | None:
     if raw is None:
         return None
@@ -295,6 +337,19 @@ def _single_size_binding(
     return size_val.strip()
 
 
+def _accessory_binding(options: list[Any]) -> str | None:
+    """
+    Match one-size Accessories items only (e.g. pasties, garters, chokers).
+
+    Sized accessories (gloves, cami sets, etc.) expose a "Size" option and are
+    intentionally excluded here; a config entry using a sized category (or a
+    dedicated size-bearing rule) is the way to track those.
+    """
+    if _option_index(options, "size") is not None:
+        return None
+    return "One Size"
+
+
 def _variant_binding_for_rule(
     product: dict[str, Any], variant: dict[str, Any], rule: MatchRule
 ) -> str | None:
@@ -304,6 +359,8 @@ def _variant_binding_for_rule(
         return None
     if rule.category == "bra":
         return _bra_binding(options, variant, rule)
+    if rule.category == "accessory":
+        return _accessory_binding(options)
     return _single_size_binding(options, variant, rule)
 
 
@@ -338,10 +395,11 @@ def _build_item(
 
     handle = product.get("handle") or ""
     title = str(product.get("title") or "").strip()
+    display_name = _display_name(product, title)
 
     return Item(
         item_id=str(variant_id),
-        name=title,
+        name=display_name,
         price_cents=price_cents,
         currency="USD",
         product_url=f"{base_url}/products/{handle}" if handle else base_url,

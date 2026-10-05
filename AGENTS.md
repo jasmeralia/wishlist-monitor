@@ -150,12 +150,16 @@ Ruff uses its defaults (line length 88).
 - `identifier`: a base storefront URL/domain (e.g. `"us.honeybirdette.com"`), or any
   other value (e.g. `"us"`) to use the default `https://us.honeybirdette.com`.
 - `options.matches`: an array of category/size rules to watch. Each entry has a
-  `type` of `"bra"`, `"thong"`, `"sheers"`, `"stockings"`, or `"hosiery"`
-  (sheers/stockings/hosiery are all the same underlying storefront category).
-  Bra entries require `band` and `cup` (e.g. `"34"` / `"C"`); all other types
-  require `size` (e.g. `"M"`). Size/band values are matched case- and
-  whitespace-insensitively; cup values additionally treat `-` and `/` as
-  interchangeable separators (`"DD-E"` == `"DD/E"`).
+  `type` of `"bra"`, `"thong"`, `"sheers"`, `"stockings"`, `"hosiery"`, or
+  `"accessory"` (sheers/stockings/hosiery are all the same underlying
+  storefront category). Bra entries require `band` and `cup` (e.g. `"34"` /
+  `"C"`); thong, sheers, stockings, and hosiery entries require `size` (e.g.
+  `"M"`). Accessory entries have no size field and match one-size products in
+  the Accessories category; sized accessories are excluded. Size/band values
+  are matched case- and whitespace-insensitively; cup values additionally treat
+  `-` and `/` as interchangeable separators (`"DD-E"` == `"DD/E"`).
+- Product colours from Honey Birdette's `colour:` tags are appended to item
+  names when the colour is not already present in the product title.
 - `options.sale_only` (default `true`): when true, only variants with a live
   markdown (`compare_at_price > price`) are tracked — full-price matches are
   ignored entirely. Set to `false` to track matching variants regardless of

@@ -97,6 +97,53 @@ def _hosiery_product(**kwargs: Any) -> dict[str, Any]:
     return _single_size_product("Hosiery", "test-stockings", 3001, **kwargs)
 
 
+def _accessory_product(
+    handle: str = "test-accessory",
+    variant_id: int = 5001,
+    title: str = "Tassel Pasties",
+    price: str = "18.00",
+    compare_at: str | None = "60.00",
+    available: bool = True,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": 5,
+        "title": title,
+        "handle": handle,
+        "product_type": "Accessories",
+        "options": [{"name": "Title"}],
+        "tags": tags or [],
+        "images": [{"src": "https://cdn.example.test/accessory.jpg"}],
+        "variants": [
+            {
+                "id": variant_id,
+                "title": "Default Title",
+                "option1": "Default Title",
+                "option2": None,
+                "option3": None,
+                "price": price,
+                "compare_at_price": compare_at,
+                "available": available,
+                "featured_image": None,
+            }
+        ],
+    }
+
+
+def _sized_accessory_product(
+    handle: str = "test-gloves",
+    variant_id: int = 6001,
+    size: str = "S/M",
+    price: str = "30.00",
+    compare_at: str | None = "100.00",
+) -> dict[str, Any]:
+    product = _single_size_product(
+        "Accessories", handle, variant_id, size=size, price=price, compare_at=compare_at
+    )
+    product["title"] = "Test Gloves"
+    return product
+
+
 def _page_text(products: list[dict[str, Any]]) -> str:
     return json.dumps({"products": products})
 
@@ -157,6 +204,15 @@ def test_parse_matches_accepts_valid_entries() -> None:
     assert rules[0].band == "32"
     assert rules[0].cup == "DD/E"
     assert rules[1].size == "XS"
+
+
+def test_parse_matches_accepts_accessory_without_size() -> None:
+    """The 'accessory' type needs no band/cup/size qualifier."""
+    rules = honeybirdette._parse_matches({"matches": [{"type": "accessory"}]})
+    assert [r.category for r in rules] == ["accessory"]
+    assert rules[0].size is None
+    assert rules[0].band is None
+    assert rules[0].cup is None
 
 
 @pytest.mark.parametrize(
@@ -404,6 +460,96 @@ def test_fetch_items_unexpected_error_is_incomplete(
 
     assert not result.complete
     assert "unexpected_error" in (result.failure_reason or "")
+
+
+def test_fetch_items_matches_one_size_accessory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A one-size Accessories product (e.g. pasties) matches the 'accessory' rule."""
+    products = [_accessory_product()]
+    monkeypatch.setattr(honeybirdette, "_fetch_page", _single_page_fetcher(products))
+    options = {"matches": [{"type": "accessory"}]}
+
+    result = honeybirdette.fetch_items("us", "HB Test", options)
+
+    assert result.complete
+    assert len(result.items) == 1
+    item = result.items[0]
+    assert item.item_id == "5001"
+    assert item.binding == "One Size"
+
+
+def test_fetch_items_excludes_sized_accessory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sized Accessories product (e.g. gloves) is not matched by 'accessory'."""
+    products = [_sized_accessory_product()]
+    monkeypatch.setattr(honeybirdette, "_fetch_page", _single_page_fetcher(products))
+    options = {"matches": [{"type": "accessory"}]}
+
+    result = honeybirdette.fetch_items("us", "HB Test", options)
+
+    assert result.items == []
+
+
+def test_fetch_items_appends_colour_tag_when_missing_from_title(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A colour tag not reflected in the title is appended to the item name."""
+    products = [
+        _accessory_product(title="Lily Bra", tags=["colour:pink"]),
+    ]
+    monkeypatch.setattr(honeybirdette, "_fetch_page", _single_page_fetcher(products))
+    options = {"matches": [{"type": "accessory"}]}
+
+    result = honeybirdette.fetch_items("us", "HB Test", options)
+
+    assert len(result.items) == 1
+    assert result.items[0].name == "Lily Bra (Pink)"
+
+
+def test_fetch_items_skips_colour_tag_already_in_title(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A colour already named in the title is not duplicated."""
+    products = [
+        _accessory_product(title="Rue Neon Pink Bra", tags=["colour:pink"]),
+    ]
+    monkeypatch.setattr(honeybirdette, "_fetch_page", _single_page_fetcher(products))
+    options = {"matches": [{"type": "accessory"}]}
+
+    result = honeybirdette.fetch_items("us", "HB Test", options)
+
+    assert len(result.items) == 1
+    assert result.items[0].name == "Rue Neon Pink Bra"
+
+
+def test_fetch_items_does_not_find_colour_inside_another_word(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A colour word embedded in another word does not count as a title match."""
+    products = [_accessory_product(title="Hundred Nights", tags=["colour:red"])]
+    monkeypatch.setattr(honeybirdette, "_fetch_page", _single_page_fetcher(products))
+    options = {"matches": [{"type": "accessory"}]}
+
+    result = honeybirdette.fetch_items("us", "HB Test", options)
+
+    assert len(result.items) == 1
+    assert result.items[0].name == "Hundred Nights (Red)"
+
+
+def test_fetch_items_handles_missing_colour_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A product with no colour tag at all keeps its plain title."""
+    products = [_accessory_product(title="4Play Card Game", tags=[])]
+    monkeypatch.setattr(honeybirdette, "_fetch_page", _single_page_fetcher(products))
+    options = {"matches": [{"type": "accessory"}]}
+
+    result = honeybirdette.fetch_items("us", "HB Test", options)
+
+    assert len(result.items) == 1
+    assert result.items[0].name == "4Play Card Game"
 
 
 def test_fetch_items_paginates_until_a_short_page(
