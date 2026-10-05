@@ -275,7 +275,9 @@ def _colour_tag(product: dict[str, Any]) -> str | None:
     word in its title). The tag is the only reliable source for that.
     """
     tags = product.get("tags")
-    if not isinstance(tags, list):
+    if isinstance(tags, str):
+        tags = [tag.strip() for tag in tags.split(",")]
+    elif not isinstance(tags, list):
         return None
     for tag in tags:
         if isinstance(tag, str) and tag.lower().startswith("colour:"):
