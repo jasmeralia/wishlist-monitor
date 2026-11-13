@@ -13,7 +13,7 @@ notifications for additions, removals, and price changes.
 
 ## Language & Runtime
 
-- Python 3.10+
+- Python 3.11.5+
 - Virtual environment at `.venv/` — activate with `. .venv/bin/activate`
 - Dependencies: `requirements.txt` (Docker image), `pyproject.toml` + `uv.lock` (native
   TrueNAS cron via `uv sync`); keep runtime deps in sync across both
@@ -279,5 +279,5 @@ Refer to `~/git/truenas-typhoon/AGENTS.md` for general TrueNAS stack-management 
 - Image published to GHCR via `.github/workflows/docker-ghcr.yml`.
 - The workflow runs `make lint` and `make test`; Docker publication only runs after
   both pass.
-- Base image: `python:3.10-slim` (or newer slim).
+- Base image: `python:3.11.5-slim` (or newer slim).
 - App lives at `/app`; data volume at `/data`.

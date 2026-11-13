@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 def _utc_timestamp() -> str:
-    return datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 PROCESS_RUN_ID = (

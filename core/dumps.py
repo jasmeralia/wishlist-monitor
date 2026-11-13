@@ -25,7 +25,7 @@ def write_dump(
     debug_dir = Path(os.getenv("DEBUG_DIR", "/data/debug_dumps"))
     try:
         debug_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ts = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
         safe = _sanitize(wishlist_name or "unknown")
         cycle_id = run_context.get_cycle_id()
         cycle_suffix = f"_{cycle_id}" if cycle_id else ""
