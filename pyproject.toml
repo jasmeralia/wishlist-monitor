@@ -3,7 +3,7 @@
 # remains the source of truth for the Docker image build; keep both in sync.
 name = "wishlist-monitor"
 version = "0.1.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11.5"
 dependencies = [
     "requests",
     "beautifulsoup4",

@@ -144,9 +144,9 @@ def parse_item_li(li: Tag) -> Item:
     name = _text_or_empty(title_el) or item_id
 
     # Binding / format (e.g. Hardcover, Paperback, Kindle Edition)
-    format_el = li.select_one(
-        '[data-cy="price-recipe"] span.puis-medium-weight-text.a-text-bold'
-    )
+    format_el = li.find(None, {"data-cy": "price-recipe"})
+    if format_el is not None:
+        format_el = format_el.select_one("span.puis-medium-weight-text.a-text-bold")
     binding = _text_or_empty(format_el) if format_el is not None else ""
 
     # Price: prefer data-price on container when present
@@ -432,7 +432,9 @@ def fetch_items(
             break
 
         # Find next pagination token from mobile wishlist hidden form
-        token_input = soup.select_one("form.scroll-state input.showMoreUrl")
+        token_input = soup.select_one("form.scroll-state")
+        if token_input is not None:
+            token_input = token_input.select_one("input.showMoreUrl")
         token_val = token_input.get("value") if token_input is not None else None
 
         if isinstance(token_val, str) and token_val:
