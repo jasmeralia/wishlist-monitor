@@ -89,8 +89,13 @@ def test_next_data_parses_supported_item_shapes() -> None:
                     {
                         "id": "small-int",
                         "name": "Small Integer",
-                        "price": 12,
+                        "price": 980,
                         "available": False,
+                    },
+                    {
+                        "id": "small-int-string",
+                        "name": "Small Integer String",
+                        "price": "980",
                     },
                     {
                         "id": "float",
@@ -127,8 +132,9 @@ def test_next_data_parses_supported_item_shapes() -> None:
     assert by_name["Bad Cents"].price_cents == -1
     assert by_name["Large Integer"].price_cents == 1501
     assert by_name["Large Integer"].image_url == "https://img/extra"
-    assert by_name["Small Integer"].price_cents == 1200
+    assert by_name["Small Integer"].price_cents == 980
     assert not by_name["Small Integer"].available
+    assert by_name["Small Integer String"].price_cents == 980
     assert by_name["Float Price"].price_cents == 1250
     assert by_name["Large Float"].price_cents == 1500
     assert by_name["String Price"].price_cents == 1234
