@@ -138,7 +138,9 @@ def _extract_items_next_data(html: str, slug: str = "") -> list[Item] | None:
                 except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
                     price_cents = -1
             elif isinstance(price, int):
-                price_cents = price if price > 1000 else round(float(price) * 100)
+                # Throne's raw `price` field is also expressed in cents. Do not
+                # infer units from magnitude: inexpensive items can be < $10.
+                price_cents = price
             elif isinstance(price, float):
                 price_cents = round(price * 100) if price < 1000 else int(price)
             else:
@@ -152,8 +154,7 @@ def _extract_items_next_data(html: str, slug: str = "") -> list[Item] | None:
                 )
                 try:
                     if re.fullmatch(r"\d+", s):
-                        v = int(s)
-                        price_cents = v if v > 1000 else round(v * 100)
+                        price_cents = int(s)
                     else:
                         price_cents = round(float(s) * 100)
                 except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
